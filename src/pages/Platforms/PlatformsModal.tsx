@@ -1,4 +1,4 @@
-import { ACTION_TYPE, type ModalAction } from '@constants'
+import { ACTION_TYPE } from '@constants'
 import {
   Dialog,
   DialogTitle,
@@ -6,7 +6,6 @@ import {
   DialogActions,
   TextField,
   Button,
-  Alert,
   Box,
   Typography,
   CircularProgress,
@@ -14,41 +13,71 @@ import {
   FormControlLabel,
   Checkbox,
 } from '@mui/material'
-import { platformService } from '@services'
-import { useAlertStore } from '@stores'
-import type { Platform, PlatformRequest } from '@types'
+import { useCreatePlatform, useUpdatePlatform, useDeletePlatform, useRestorePlatform } from '@queries'
+import { useAlertStore, useAuthStore, usePlatformStore } from '@stores'
+import type { PlatformRequest } from '@types'
 import { extractAxiosErrorMessage } from '@utils'
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useCallback, useMemo } from 'react'
 
-interface PlatformsModalProps {
-  action: ModalAction
-  open: boolean
-  onClose: () => void
-  onSuccess: () => void
-  platform: Platform | null
-  isSuperUser?: boolean
-}
-
-export const PlatformsModal: React.FC<PlatformsModalProps> = ({
-  action,
-  open,
-  onClose,
-  onSuccess,
-  platform,
-  isSuperUser = false,
-}) => {
+export const PlatformsModal: React.FC = () => {
+  const { isSuperUser } = useAuthStore()
   const { showAlert } = useAlertStore()
+
+  const {
+    isPlatformModalOpen,
+    platformModalAction: action,
+    selectedPlatform: platform,
+    closePlatformModal,
+  } = usePlatformStore()
+
+  const createPlatform = useCreatePlatform()
+  const updatePlatform = useUpdatePlatform()
+  const deletePlatform = useDeletePlatform()
+  const restorePlatform = useRestorePlatform()
+
   const [formData, setFormData] = useState<PlatformRequest>({
-    platformName: '',
-    platformDesc: '',
+    platformName: platform ? platform.platformName : '',
+    platformDesc: platform ? platform.platformDesc : '',
   })
 
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [showUnsavedWarning, setShowUnsavedWarning] = useState(false)
   const [isHardDelete, setIsHardDelete] = useState(false)
+
+  const resetForm = useCallback(() => {
+    if (platform) {
+      setFormData({
+        platformName: platform.platformName,
+        platformDesc: platform.platformDesc,
+      })
+      setIsHardDelete(platform.deletedDate !== null)
+    } else {
+      setFormData({ platformName: '', platformDesc: '' })
+      setIsHardDelete(false)
+    }
+  }, [platform])
+
+  const hasUnsavedChanges = useMemo(() => {
+    if (action === ACTION_TYPE.CREATE) {
+      return formData.platformName.trim() !== '' || formData.platformDesc.trim() !== ''
+    }
+
+    if (action === ACTION_TYPE.UPDATE && platform) {
+      return (
+        formData.platformName.trim() !== platform.platformName || formData.platformDesc.trim() !== platform.platformDesc
+      )
+    }
+
+    return false
+  }, [formData, action, platform])
+
+  if (
+    !action ||
+    ((action === ACTION_TYPE.DELETE || action === ACTION_TYPE.RESTORE || action === ACTION_TYPE.UPDATE) && !platform)
+  )
+    return null
+
+  const isLoading =
+    createPlatform.isPending || updatePlatform.isPending || deletePlatform.isPending || restorePlatform.isPending
 
   const modalConfig = {
     CREATE: {
@@ -77,74 +106,38 @@ export const PlatformsModal: React.FC<PlatformsModalProps> = ({
     },
   }[action]
 
-  const resetForm = useCallback(() => {
-    if (action === ACTION_TYPE.UPDATE && platform) {
-      setFormData({
-        platformName: platform.platformName,
-        platformDesc: platform.platformDesc,
-      })
-    } else {
-      setFormData({ platformName: '', platformDesc: '' })
-    }
-    setError(null)
-    setHasUnsavedChanges(false)
-    setShowUnsavedWarning(false)
-    setIsHardDelete(platform ? platform.deletedDate !== null : false)
-  }, [action, platform])
-
-  useEffect(() => {
-    if (open) {
-      resetForm()
-    }
-  }, [open, resetForm])
-
-  useEffect(() => {
-    if (action === ACTION_TYPE.CREATE) {
-      const hasChanges = formData.platformName.trim() !== '' || formData.platformDesc.trim() !== ''
-      setHasUnsavedChanges(hasChanges)
-    } else if (action === ACTION_TYPE.UPDATE && platform) {
-      const hasChanges =
-        formData.platformName.trim() !== platform.platformName || formData.platformDesc.trim() !== platform.platformDesc
-      setHasUnsavedChanges(hasChanges)
-    }
-  }, [formData, action, platform])
-
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
-  const handleSubmit = (e?: React.FormEvent) => {
+  const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault()
-    setLoading(true)
-    setError(null)
 
-    const submitAsync = async () => {
-      try {
-        if (action === ACTION_TYPE.CREATE) {
-          await platformService.createPlatform(formData)
-        } else if (action === ACTION_TYPE.UPDATE && platform?.id) {
-          await platformService.updatePlatform(platform.id, formData)
-        } else if (action === ACTION_TYPE.DELETE && platform?.id) {
-          await platformService.deletePlatform(platform.id, isHardDelete)
-        } else if (action === ACTION_TYPE.RESTORE && platform?.id) {
-          await platformService.restorePlatform(platform.id)
-        }
-
-        showAlert('success', modalConfig.success)
-        onSuccess()
-        resetForm()
-        onClose()
-      } catch (err) {
-        const errorMessage = extractAxiosErrorMessage(err)
-        setError(errorMessage)
-        showAlert('error', `${modalConfig.errorPrefix}: ${errorMessage}`)
-      } finally {
-        setLoading(false)
+    try {
+      if (action === ACTION_TYPE.CREATE) {
+        await createPlatform.mutateAsync(formData)
+      } else if (action === ACTION_TYPE.UPDATE && platform?.id) {
+        await updatePlatform.mutateAsync({
+          id: platform.id,
+          payload: formData,
+        })
+      } else if (action === ACTION_TYPE.DELETE && platform?.id) {
+        await deletePlatform.mutateAsync({
+          id: platform.id,
+          isHardDelete,
+        })
+      } else if (action === ACTION_TYPE.RESTORE && platform?.id) {
+        await restorePlatform.mutateAsync(platform.id)
       }
-    }
 
-    void submitAsync()
+      showAlert('success', modalConfig.success)
+      resetForm()
+      closePlatformModal()
+    } catch (err) {
+      const errorMessage = extractAxiosErrorMessage(err)
+      showAlert('error', `${modalConfig.errorPrefix}: ${errorMessage}`)
+    }
   }
 
   const handleClose = () => {
@@ -152,14 +145,14 @@ export const PlatformsModal: React.FC<PlatformsModalProps> = ({
       setShowUnsavedWarning(true)
     } else {
       resetForm()
-      onClose()
+      closePlatformModal()
     }
   }
 
   const handleConfirmClose = () => {
     resetForm()
     setShowUnsavedWarning(false)
-    onClose()
+    closePlatformModal()
   }
 
   const handleCancelClose = () => setShowUnsavedWarning(false)
@@ -169,21 +162,15 @@ export const PlatformsModal: React.FC<PlatformsModalProps> = ({
 
   return (
     <>
-      <Dialog open={open} onClose={handleClose} maxWidth='sm' fullWidth>
+      <Dialog open={isPlatformModalOpen} onClose={handleClose} maxWidth='sm' fullWidth>
         {(action === ACTION_TYPE.CREATE || action === ACTION_TYPE.UPDATE) && (
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={(e) => void handleSubmit(e)}>
             <DialogTitle>
               <Typography fontWeight='bold'>{modalConfig.title}</Typography>
             </DialogTitle>
 
             <DialogContent>
               <Box sx={{ pt: 2, display: 'flex', flexDirection: 'column', gap: 3 }}>
-                {error && (
-                  <Alert severity='error' sx={{ mb: 2 }}>
-                    {error}
-                  </Alert>
-                )}
-
                 <TextField
                   required
                   label='Platform Name'
@@ -191,7 +178,7 @@ export const PlatformsModal: React.FC<PlatformsModalProps> = ({
                   value={formData.platformName}
                   onChange={handleChange}
                   fullWidth
-                  disabled={loading}
+                  disabled={isLoading}
                   placeholder='e.g., Auth Service, Task Service, etc'
                   helperText='Use title case (eg: Auth Service)'
                 />
@@ -205,23 +192,23 @@ export const PlatformsModal: React.FC<PlatformsModalProps> = ({
                   fullWidth
                   multiline
                   rows={3}
-                  disabled={loading}
+                  disabled={isLoading}
                   placeholder='Describe what this platform is for...'
                 />
               </Box>
             </DialogContent>
 
             <DialogActions sx={{ px: 3, pb: 3 }}>
-              <Button onClick={handleClose} disabled={loading}>
+              <Button onClick={handleClose} disabled={isLoading}>
                 Cancel
               </Button>
               <Button
                 type='submit'
                 variant='contained'
-                disabled={loading}
-                startIcon={loading ? <CircularProgress size={16} /> : undefined}
+                disabled={isLoading}
+                startIcon={isLoading ? <CircularProgress size={16} /> : undefined}
               >
-                {loading ? 'Processing...' : modalConfig.buttonLabel}
+                {isLoading ? 'Processing...' : modalConfig.buttonLabel}
               </Button>
             </DialogActions>
           </form>
@@ -247,7 +234,7 @@ export const PlatformsModal: React.FC<PlatformsModalProps> = ({
                       checked={isHardDelete}
                       onChange={(e) => setIsHardDelete(e.target.checked)}
                       color='error'
-                      disabled={loading}
+                      disabled={isLoading}
                     />
                   }
                   label='Permanently delete (hard delete)'
@@ -257,16 +244,16 @@ export const PlatformsModal: React.FC<PlatformsModalProps> = ({
             </DialogContent>
 
             <DialogActions>
-              <Button onClick={handleClose} color='inherit' disabled={loading}>
+              <Button onClick={handleClose} color='inherit' disabled={isLoading}>
                 Cancel
               </Button>
               <Button
-                onClick={() => handleSubmit()}
+                onClick={(e) => void handleSubmit(e)}
                 color={action === ACTION_TYPE.DELETE ? (isHardDelete ? 'error' : 'warning') : 'warning'}
                 variant='contained'
-                disabled={loading}
+                disabled={isLoading}
               >
-                {loading ? 'Processing' : modalConfig.buttonLabel}
+                {isLoading ? 'Processing' : modalConfig.buttonLabel}
               </Button>
             </DialogActions>
           </>

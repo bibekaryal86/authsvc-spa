@@ -17,7 +17,6 @@ interface RoleState {
   prpPprModalAction: PrpPprAction | null
 
   setSelectedStatus: (v: string) => void
-  setSelectedPlatform: (v: string) => void
   setIncludeDeleted: (v: boolean) => void
   setSelectedRole: (p: Role | null) => void
   openRoleModal: (action: ModalAction, role?: Role | null) => void
