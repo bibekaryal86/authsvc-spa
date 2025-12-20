@@ -1,3 +1,7 @@
+TODO
+when logging out, clear query cache also
+Alert/Spinner use custom components
+
 # Auth Service Admin Portal
 
 ## Overview
