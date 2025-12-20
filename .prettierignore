@@ -1,0 +1,9 @@
+.git
+.github
+.idea
+.coverage
+.eslintcache
+dist
+build
+gcp
+node_modules
