@@ -1,0 +1,15 @@
+.git
+.github
+.idea
+.vite
+dist
+gcp
+node_modules
+.dockerignore
+.env.example
+.gitignore
+.prettierignore
+.prettierrc
+eslint.config.js
+LICENSE
+README.md
