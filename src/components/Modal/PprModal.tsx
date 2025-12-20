@@ -90,6 +90,7 @@ export const PprModal: React.FC<PprModalProps> = ({
       }
     }
   }, [
+    action,
     fetchPlatforms,
     fetchProfiles,
     fetchRoles,
@@ -99,6 +100,7 @@ export const PprModal: React.FC<PprModalProps> = ({
     profiles.length,
     roles.length,
     selectedEntity.id,
+    selectedPpr,
   ])
 
   const handlePlatformChange = (event: SelectChangeEvent<string | null>) => {

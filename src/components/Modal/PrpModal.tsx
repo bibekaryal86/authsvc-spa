@@ -100,6 +100,7 @@ export const PrpModal: React.FC<PrpModalProps> = ({
     platforms.length,
     roles.length,
     selectedEntity.id,
+    selectedPrp,
   ])
 
   const handlePlatformChange = (event: SelectChangeEvent<string | null>) => {
