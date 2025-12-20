@@ -41,12 +41,12 @@ export const profileService = {
     )
   },
 
-  deleteProfile: async (id: number, isHardDelete: boolean): Promise<void> => {
+  deleteProfile: async (id: number, isHardDelete: boolean): Promise<ProfileResponse> => {
     const url = isHardDelete ? `/v1/profiles/profile/${id}/hard` : `/v1/profiles/profile/${id}`
     return await apiHelperCore.delete(url)
   },
 
-  restoreProfile: async (id: number): Promise<void> => {
+  restoreProfile: async (id: number): Promise<ProfileResponse> => {
     return await apiHelperCore.patch(`/v1/profiles/profile/${id}/restore`, { deletedDate: null })
   },
 }

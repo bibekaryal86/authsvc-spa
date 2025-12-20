@@ -1,6 +1,6 @@
 TODO
 when logging out, clear query cache also
-Alert/Spinner use custom components
+Prp/Ppr Modals needs rework also
 
 # Auth Service Admin Portal
 

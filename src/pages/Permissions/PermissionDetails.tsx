@@ -1,58 +1,40 @@
-import { HistoryTable, PrpTable } from '@components'
-import { PrpModal } from '@components'
+import { HistoryTable, PrpTable, Spinner } from '@components'
 import { ACTION_TYPE, DEFAULT_PARAMS, type PrpPprAction } from '@constants'
 import { Add, ArrowBack, History } from '@mui/icons-material'
 import {
+  Alert,
   Container,
   Paper,
   Typography,
   Box,
   Button,
-  CircularProgress,
-  Alert,
   Grid,
   Card,
   CardContent,
   Divider,
   Collapse,
 } from '@mui/material'
+import { useReadPermissionById } from '@queries'
 import { usePermissionStore, useAuthStore } from '@stores'
-import type { Permission, PlatformRolePermission } from '@types'
+import type { PlatformRolePermission } from '@types'
 import { getNumber } from '@utils'
-import React, { useEffect, useState } from 'react'
+import React from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 
 export const PermissionDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { isLoading, error, fetchPermissionById, clearError } = usePermissionStore()
   const { isSuperUser } = useAuthStore()
-  const [permission, setPermission] = useState<Permission | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [showHistory, setShowHistory] = useState(false)
-  const [isPrpModalOpen, setIsPrpModalOpen] = useState(false)
-  const [selectedPrp, setSelectedPrp] = useState<PlatformRolePermission | null>(null)
-  const [prpModalAction, setPrpModalAction] = useState<PrpPprAction | null>(null)
 
-  useEffect(() => {
-    if (!id) return
+  const { isShowHistory, setShowHistory, setSelectedPermission, openPrpModal, setIncludeDeleted } = usePermissionStore()
 
-    let isMounted = true
-
-    const loadPermission = async () => {
-      const foundPermission = await fetchPermissionById(getNumber(id), { ...DEFAULT_PARAMS, isForceFetch: true })
-      if (isMounted) {
-        setPermission(foundPermission)
-        setLoading(false)
-      }
-    }
-
-    void loadPermission()
-
-    return () => {
-      isMounted = false
-    }
-  }, [id, fetchPermissionById])
+  const permissionId = getNumber(id)
+  const {
+    data: permission,
+    isLoading,
+    error,
+  } = useReadPermissionById(permissionId, { ...DEFAULT_PARAMS, isForceFetch: true, isIncludeHistory: isShowHistory })
+  setSelectedPermission(permission ? permission : null)
 
   const handleBack = () => {
     void navigate(-1)
@@ -62,53 +44,22 @@ export const PermissionDetails: React.FC = () => {
     void navigate('/permissions')
   }
 
-  const handleDeletedLookup = async () => {
-    const foundPermission = await fetchPermissionById(getNumber(id), {
-      ...DEFAULT_PARAMS,
-      isIncludeDeleted: true,
-      isForceFetch: true,
-    })
-    setPermission(foundPermission)
+  const handleViewHistory = async () => {
+    setShowHistory(!isShowHistory)
   }
 
-  const handleViewHistory = async () => {
-    setShowHistory(!showHistory)
-    if (permission && (!permission.history || permission.history.length === 0)) {
-      const foundPermission = await fetchPermissionById(getNumber(id), {
-        ...DEFAULT_PARAMS,
-        isIncludeHistory: true,
-        isForceFetch: true,
-      })
-      setPermission(foundPermission)
-    }
+  const handleDeletedLookup = async () => {
+    setIncludeDeleted(true)
   }
 
   const handlePrpModalOpen = (action: PrpPprAction, selectedPrp: PlatformRolePermission | null) => {
-    setSelectedPrp(selectedPrp)
-    setPrpModalAction(action)
-    setIsPrpModalOpen(true)
+    openPrpModal(action, selectedPrp)
   }
 
-  const handlePrpModalClose = () => {
-    setPrpModalAction(null)
-    setSelectedPrp(null)
-    setIsPrpModalOpen(false)
-  }
-
-  const handlePrpModalSuccess = async () => {
-    const updatedPermission = await fetchPermissionById(getNumber(id), {
-      ...DEFAULT_PARAMS,
-      isForceFetch: true,
-    })
-    setPermission(updatedPermission)
-    setPrpModalAction(null)
-    setSelectedPrp(null)
-  }
-
-  if (loading || isLoading) {
+  if (isLoading) {
     return (
       <Container maxWidth='lg' sx={{ py: 4, display: 'flex', justifyContent: 'center' }}>
-        <CircularProgress />
+        <Spinner />
       </Container>
     )
   }
@@ -123,7 +74,6 @@ export const PermissionDetails: React.FC = () => {
               color='inherit'
               size='small'
               onClick={() => {
-                clearError()
                 handleBackToPermissions()
               }}
             >
@@ -131,7 +81,7 @@ export const PermissionDetails: React.FC = () => {
             </Button>
           }
         >
-          {error}
+          {error.message}
         </Alert>
         {isSuperUser && (
           <Alert
@@ -324,7 +274,7 @@ export const PermissionDetails: React.FC = () => {
             </Button>
           </Box>
 
-          <Collapse in={showHistory}>
+          <Collapse in={isShowHistory}>
             <Box sx={{ mt: 4, pt: 3, borderTop: 1, borderColor: 'divider' }}>
               <Typography variant='h6' gutterBottom fontWeight='medium'>
                 Permission History
@@ -345,15 +295,6 @@ export const PermissionDetails: React.FC = () => {
           </Collapse>
         </Paper>
       </Container>
-      <PrpModal
-        open={isPrpModalOpen}
-        onClose={handlePrpModalClose}
-        onSuccess={() => void handlePrpModalSuccess()}
-        action={prpModalAction}
-        initEntity='permission'
-        selectedEntity={permission}
-        selectedPrp={selectedPrp}
-      />
     </>
   )
 }

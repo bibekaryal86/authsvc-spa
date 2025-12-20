@@ -1,106 +1,76 @@
-import { DEFAULT_PARAMS } from '@constants'
-import { permissionService } from '@services'
-import type { Permission, RequestMetadata } from '@types'
-import { extractAxiosErrorMessage } from '@utils'
+import { type ModalAction, type PrpPprAction } from '@constants'
+import type { Permission, PlatformRolePermission } from '@types'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 
 interface PermissionState {
-  permissions: Permission[]
-  platformNames: string[]
-  isLoading: boolean
-  error: string | null
+  isPermissionModalOpen: boolean
+  permissionModalAction: ModalAction | null
+  selectedStatus: string
+  selectedPlatform: string
+  isIncludeDeleted: boolean
+  selectedPermission: Permission | null
+  isShowHistory: boolean
+  isPrpModalOpen: boolean
+  selectedPrp: PlatformRolePermission | null
+  prpModalAction: PrpPprAction | null
 
-  setPermissions: (permissions: Permission[]) => void
-  setPlatformNames: (platformNames: string[]) => void
-  setLoading: (loading: boolean) => void
-  setError: (error: string | null) => void
-  clearError: () => void
-  fetchPermissions: (params: RequestMetadata) => Promise<void>
-  fetchPermissionById: (id: number, params: RequestMetadata) => Promise<Permission | null>
-  resetPermissions: () => void
+  setSelectedStatus: (v: string) => void
+  setSelectedPlatform: (v: string) => void
+  setIncludeDeleted: (v: boolean) => void
+  setSelectedPermission: (p: Permission | null) => void
+  openPermissionModal: (action: ModalAction, permission?: Permission | null) => void
+  closePermissionModal: () => void
+  openPrpModal: (action: PrpPprAction, prp?: PlatformRolePermission | null) => void
+  closePrpModal: () => void
+  setShowHistory: (v: boolean) => void
+
+  resetPermissionState: () => void
 }
 
 export const usePermissionStore = create<PermissionState>()(
   devtools(
-    (set, get) => ({
-      permissions: [],
-      platformNames: [],
-      isLoading: false,
-      error: null,
+    (set) => ({
+      isPermissionModalOpen: false,
+      permissionModalAction: null,
+      selectedStatus: 'all',
+      selectedPlatform: 'all',
+      isIncludeDeleted: false,
+      selectedPermission: null,
+      isShowHistory: false,
+      isPrpModalOpen: false,
+      selectedPrp: null,
+      prpModalAction: null,
 
-      setPermissions: (permissions: Permission[]) => set({ permissions }, false, 'permission/setPermissions'),
-
-      setPlatformNames: (platformNames: string[]) => set({ platformNames }, false, 'permission/setPlatformNames'),
-
-      setLoading: (loading: boolean) => set({ isLoading: loading }, false, 'permission/setLoading'),
-
-      setError: (error: string | null) => set({ error }, false, 'permission/setError'),
-
-      clearError: () => set({ error: null }, false, 'permission/clearError'),
-
-      fetchPermissions: async (params = DEFAULT_PARAMS): Promise<void> => {
-        const { setLoading, setPermissions, setPlatformNames, setError } = get()
-
-        try {
-          setLoading(true)
-          setError(null)
-
-          const response = await permissionService.readPermissions(params)
-          setPermissions(response.permissions)
-          setPlatformNames(response.platformNames)
-        } catch (error) {
-          const errorMessage = extractAxiosErrorMessage(error)
-          setError(errorMessage)
-          console.error('Error fetching permissions:', error)
-        } finally {
-          setLoading(false)
-        }
-      },
-
-      fetchPermissionById: async (id: number, params = DEFAULT_PARAMS): Promise<Permission | null> => {
-        const { setLoading, setError, permissions } = get()
-        const { isForceFetch } = params
-
-        try {
-          if (!isForceFetch) {
-            const existingPermission = permissions.find((p) => p.id === id)
-            if (existingPermission) {
-              console.log('Permission found in store, skipping API call')
-              return existingPermission
-            }
-          }
-
-          setLoading(true)
-          setError(null)
-
-          const response = await permissionService.readPermission(id, params)
-
-          if (response.permissions.length > 0) {
-            const permission = response.permissions[0]
-            const currentPermissions = get().permissions
-
-            const updatedPermissions = currentPermissions.some((p) => p.id === permission.id)
-              ? currentPermissions.map((p) => (p.id === permission.id ? permission : p))
-              : [...currentPermissions, permission]
-
-            set({ permissions: updatedPermissions }, false, 'permission/updatePermissions')
-            return permission
-          }
-
-          return null
-        } catch (error) {
-          const errorMessage = extractAxiosErrorMessage(error)
-          setError(errorMessage)
-          console.error('Error fetching permission by ID:', error)
-          return null
-        } finally {
-          setLoading(false)
-        }
-      },
+      setSelectedStatus: (v) => set({ selectedStatus: v }),
+      setSelectedPlatform: (v) => set({ selectedPlatform: v }),
+      setIncludeDeleted: (v) => set({ isIncludeDeleted: v }),
+      setSelectedPermission: (p) => set({ selectedPermission: p }),
+      openPermissionModal: (action, permission = null) =>
+        set({ isPermissionModalOpen: true, permissionModalAction: action, selectedPermission: permission }),
+      closePermissionModal: () =>
+        set({ isPermissionModalOpen: false, permissionModalAction: null, selectedPermission: null }),
+      openPrpModal: (action, prp = null) => set({ isPrpModalOpen: true, prpModalAction: action, selectedPrp: prp }),
+      closePrpModal: () => set({ isPrpModalOpen: false, prpModalAction: null, selectedPrp: null }),
+      setShowHistory: (v) => set({ isShowHistory: v }),
 
       resetPermissions: () =>
-        set({ permissions: [], isLoading: false, error: null }, false, 'permission/resetPermissions'),
+        set(
+          {
+            isPermissionModalOpen: false,
+            permissionModalAction: null,
+            selectedStatus: 'all',
+            selectedPlatform: 'all',
+            isIncludeDeleted: false,
+            selectedPermission: null,
+            isShowHistory: false,
+            isPrpModalOpen: false,
+            selectedPrp: null,
+            prpModalAction: null,
+          },
+          false,
+          'permission/resetPermissions',
+        ),
     }),
     {
       name: 'PermissionStore',

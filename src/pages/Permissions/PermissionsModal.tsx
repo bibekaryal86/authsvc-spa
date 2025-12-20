@@ -1,4 +1,4 @@
-import { ACTION_TYPE, type ModalAction } from '@constants'
+import { ACTION_TYPE } from '@constants'
 import {
   Dialog,
   DialogTitle,
@@ -6,7 +6,6 @@ import {
   DialogActions,
   TextField,
   Button,
-  Alert,
   Box,
   Typography,
   CircularProgress,
@@ -14,41 +13,76 @@ import {
   FormControlLabel,
   Checkbox,
 } from '@mui/material'
-import { permissionService } from '@services'
-import { useAlertStore } from '@stores'
-import type { Permission, PermissionRequest } from '@types'
+import { useCreatePermission, useUpdatePermission, useDeletePermission, useRestorePermission } from '@queries'
+import { useAlertStore, useAuthStore, usePermissionStore } from '@stores'
+import type { PermissionRequest } from '@types'
 import { extractAxiosErrorMessage } from '@utils'
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useCallback, useMemo } from 'react'
 
-interface PermissionsModalProps {
-  action: ModalAction
-  open: boolean
-  onClose: () => void
-  onSuccess: () => void
-  permission: Permission | null
-  isSuperUser?: boolean
-}
-
-export const PermissionsModal: React.FC<PermissionsModalProps> = ({
-  action,
-  open,
-  onClose,
-  onSuccess,
-  permission,
-  isSuperUser = false,
-}) => {
+export const PermissionsModal: React.FC = () => {
+  const { isSuperUser } = useAuthStore()
   const { showAlert } = useAlertStore()
+
+  const {
+    isPermissionModalOpen,
+    permissionModalAction: action,
+    selectedPermission: permission,
+    closePermissionModal,
+  } = usePermissionStore()
+
+  const createPermission = useCreatePermission()
+  const updatePermission = useUpdatePermission()
+  const deletePermission = useDeletePermission()
+  const restorePermission = useRestorePermission()
+
   const [formData, setFormData] = useState<PermissionRequest>({
-    permissionName: '',
-    permissionDesc: '',
+    permissionName: permission ? permission.permissionName : '',
+    permissionDesc: permission ? permission.permissionDesc : '',
   })
-
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [showUnsavedWarning, setShowUnsavedWarning] = useState(false)
   const [isHardDelete, setIsHardDelete] = useState(false)
+
+  const resetForm = useCallback(() => {
+    if (permission) {
+      setFormData({
+        permissionName: permission.permissionName,
+        permissionDesc: permission.permissionDesc,
+      })
+      setIsHardDelete(permission.deletedDate !== null)
+    } else {
+      setFormData({ permissionName: '', permissionDesc: '' })
+      setIsHardDelete(false)
+    }
+
+    setShowUnsavedWarning(false)
+  }, [permission])
+
+  const hasUnsavedChanges = useMemo(() => {
+    if (action === ACTION_TYPE.CREATE) {
+      return formData.permissionName.trim() !== '' || formData.permissionDesc.trim() !== ''
+    }
+
+    if (action === ACTION_TYPE.UPDATE && permission) {
+      return (
+        formData.permissionName.trim() !== permission.permissionName ||
+        formData.permissionDesc.trim() !== permission.permissionDesc
+      )
+    }
+
+    return false
+  }, [formData, action, permission])
+
+  if (
+    !action ||
+    ((action === ACTION_TYPE.DELETE || action === ACTION_TYPE.RESTORE || action === ACTION_TYPE.UPDATE) && !permission)
+  )
+    return null
+
+  const isLoading =
+    createPermission.isPending ||
+    updatePermission.isPending ||
+    deletePermission.isPending ||
+    restorePermission.isPending
 
   const modalConfig = {
     CREATE: {
@@ -77,75 +111,38 @@ export const PermissionsModal: React.FC<PermissionsModalProps> = ({
     },
   }[action]
 
-  const resetForm = useCallback(() => {
-    if (action === ACTION_TYPE.UPDATE && permission) {
-      setFormData({
-        permissionName: permission.permissionName,
-        permissionDesc: permission.permissionDesc,
-      })
-    } else {
-      setFormData({ permissionName: '', permissionDesc: '' })
-    }
-    setError(null)
-    setHasUnsavedChanges(false)
-    setShowUnsavedWarning(false)
-    setIsHardDelete(permission ? permission.deletedDate !== null : false)
-  }, [action, permission])
-
-  useEffect(() => {
-    if (open) {
-      resetForm()
-    }
-  }, [open, resetForm])
-
-  useEffect(() => {
-    if (action === ACTION_TYPE.CREATE) {
-      const hasChanges = formData.permissionName.trim() !== '' || formData.permissionDesc.trim() !== ''
-      setHasUnsavedChanges(hasChanges)
-    } else if (action === ACTION_TYPE.UPDATE && permission) {
-      const hasChanges =
-        formData.permissionName.trim() !== permission.permissionName ||
-        formData.permissionDesc.trim() !== permission.permissionDesc
-      setHasUnsavedChanges(hasChanges)
-    }
-  }, [formData, action, permission])
-
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
-  const handleSubmit = (e?: React.FormEvent) => {
+  const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault()
-    setLoading(true)
-    setError(null)
 
-    const submitAsync = async () => {
-      try {
-        if (action === ACTION_TYPE.CREATE) {
-          await permissionService.createPermission(formData)
-        } else if (action === ACTION_TYPE.UPDATE && permission?.id) {
-          await permissionService.updatePermission(permission.id, formData)
-        } else if (action === ACTION_TYPE.DELETE && permission?.id) {
-          await permissionService.deletePermission(permission.id, isHardDelete)
-        } else if (action === ACTION_TYPE.RESTORE && permission?.id) {
-          await permissionService.restorePermission(permission.id)
-        }
-
-        showAlert('success', modalConfig.success)
-        onSuccess()
-        resetForm()
-        onClose()
-      } catch (err) {
-        const errorMessage = extractAxiosErrorMessage(err)
-        setError(errorMessage)
-        showAlert('error', `${modalConfig.errorPrefix}: ${errorMessage}`)
-      } finally {
-        setLoading(false)
+    try {
+      if (action === ACTION_TYPE.CREATE) {
+        await createPermission.mutateAsync(formData)
+      } else if (action === ACTION_TYPE.UPDATE && permission?.id) {
+        await updatePermission.mutateAsync({
+          id: permission.id,
+          payload: formData,
+        })
+      } else if (action === ACTION_TYPE.DELETE && permission?.id) {
+        await deletePermission.mutateAsync({
+          id: permission.id,
+          isHardDelete,
+        })
+      } else if (action === ACTION_TYPE.RESTORE && permission?.id) {
+        await restorePermission.mutateAsync(permission.id)
       }
-    }
 
-    void submitAsync()
+      showAlert('success', modalConfig.success)
+      resetForm()
+      closePermissionModal()
+    } catch (err) {
+      const errorMessage = extractAxiosErrorMessage(err)
+      showAlert('error', `${modalConfig.errorPrefix}: ${errorMessage}`)
+    }
   }
 
   const handleClose = () => {
@@ -153,38 +150,29 @@ export const PermissionsModal: React.FC<PermissionsModalProps> = ({
       setShowUnsavedWarning(true)
     } else {
       resetForm()
-      onClose()
+      closePermissionModal()
     }
   }
 
   const handleConfirmClose = () => {
     resetForm()
     setShowUnsavedWarning(false)
-    onClose()
+    closePermissionModal()
   }
 
   const handleCancelClose = () => setShowUnsavedWarning(false)
 
-  if ((action === ACTION_TYPE.DELETE || action === ACTION_TYPE.RESTORE || action === ACTION_TYPE.UPDATE) && !permission)
-    return null
-
   return (
     <>
-      <Dialog open={open} onClose={handleClose} maxWidth='sm' fullWidth>
+      <Dialog open={isPermissionModalOpen} onClose={handleClose} maxWidth='sm' fullWidth>
         {(action === ACTION_TYPE.CREATE || action === ACTION_TYPE.UPDATE) && (
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={(e) => void handleSubmit(e)}>
             <DialogTitle>
               <Typography fontWeight='bold'>{modalConfig.title}</Typography>
             </DialogTitle>
 
             <DialogContent>
               <Box sx={{ pt: 2, display: 'flex', flexDirection: 'column', gap: 3 }}>
-                {error && (
-                  <Alert severity='error' sx={{ mb: 2 }}>
-                    {error}
-                  </Alert>
-                )}
-
                 <TextField
                   required
                   label='Permission Name'
@@ -192,7 +180,7 @@ export const PermissionsModal: React.FC<PermissionsModalProps> = ({
                   value={formData.permissionName}
                   onChange={handleChange}
                   fullWidth
-                  disabled={loading}
+                  disabled={isLoading}
                   placeholder='e.g., READ_USERS, WRITE_REPORTS'
                   helperText='Use uppercase with underscores (e.g., PERMISSION_NAME)'
                 />
@@ -206,23 +194,23 @@ export const PermissionsModal: React.FC<PermissionsModalProps> = ({
                   fullWidth
                   multiline
                   rows={3}
-                  disabled={loading}
+                  disabled={isLoading}
                   placeholder='Describe what this permission allows...'
                 />
               </Box>
             </DialogContent>
 
             <DialogActions sx={{ px: 3, pb: 3 }}>
-              <Button onClick={handleClose} disabled={loading}>
+              <Button onClick={handleClose} disabled={isLoading}>
                 Cancel
               </Button>
               <Button
                 type='submit'
                 variant='contained'
-                disabled={loading}
-                startIcon={loading ? <CircularProgress size={16} /> : undefined}
+                disabled={isLoading}
+                startIcon={isLoading ? <CircularProgress size={16} /> : undefined}
               >
-                {loading ? 'Processing...' : modalConfig.buttonLabel}
+                {isLoading ? 'Processing...' : modalConfig.buttonLabel}
               </Button>
             </DialogActions>
           </form>
@@ -248,7 +236,7 @@ export const PermissionsModal: React.FC<PermissionsModalProps> = ({
                       checked={isHardDelete}
                       onChange={(e) => setIsHardDelete(e.target.checked)}
                       color='error'
-                      disabled={loading}
+                      disabled={isLoading}
                     />
                   }
                   label='Permanently delete (hard delete)'
@@ -258,16 +246,16 @@ export const PermissionsModal: React.FC<PermissionsModalProps> = ({
             </DialogContent>
 
             <DialogActions>
-              <Button onClick={handleClose} color='inherit' disabled={loading}>
+              <Button onClick={handleClose} color='inherit' disabled={isLoading}>
                 Cancel
               </Button>
               <Button
-                onClick={() => handleSubmit()}
+                onClick={() => void handleSubmit()}
                 color={action === ACTION_TYPE.DELETE ? (isHardDelete ? 'error' : 'warning') : 'warning'}
                 variant='contained'
-                disabled={loading}
+                disabled={isLoading}
               >
-                {loading ? 'Processing' : modalConfig.buttonLabel}
+                {isLoading ? 'Processing' : modalConfig.buttonLabel}
               </Button>
             </DialogActions>
           </>

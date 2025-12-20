@@ -1,2 +1,2 @@
 export { queryClient as query } from './queryClient.ts'
-export * from './usePermissionsQuery.ts'
+export * from './usePermissionQuery.ts'

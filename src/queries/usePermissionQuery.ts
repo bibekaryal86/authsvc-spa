@@ -26,6 +26,7 @@ export const useCreatePermission = () => {
 
   return useMutation({
     mutationFn: permissionService.createPermission,
+
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['permissions'] })
     },

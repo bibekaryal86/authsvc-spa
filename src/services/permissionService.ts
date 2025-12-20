@@ -22,12 +22,12 @@ export const permissionService = {
     return await apiHelperCore.put<PermissionResponse>(`/v1/permissions/permission/${id}`, permission)
   },
 
-  deletePermission: async (id: number, isHardDelete: boolean): Promise<void> => {
+  deletePermission: async (id: number, isHardDelete: boolean): Promise<PermissionResponse> => {
     const url = isHardDelete ? `/v1/permissions/permission/${id}/hard` : `/v1/permissions/permission/${id}`
     return await apiHelperCore.delete(url)
   },
 
-  restorePermission: async (id: number): Promise<void> => {
+  restorePermission: async (id: number): Promise<PermissionResponse> => {
     return await apiHelperCore.patch(`/v1/permissions/permission/${id}/restore`, { deletedDate: null })
   },
 }

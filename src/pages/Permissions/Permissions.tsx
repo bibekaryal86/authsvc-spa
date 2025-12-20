@@ -2,7 +2,6 @@ import { EntityTable } from '@components'
 import { ACTION_TYPE, type ModalAction, DEFAULT_PARAMS } from '@constants'
 import { Add, FilterList } from '@mui/icons-material'
 import {
-  Alert,
   Box,
   Button,
   Checkbox,
@@ -18,28 +17,34 @@ import {
   Select,
   Typography,
 } from '@mui/material'
+import { useReadPermissions } from '@queries'
 import { usePermissionStore, useAuthStore } from '@stores'
 import type { Permission } from '@types'
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useMemo } from 'react'
 
 import { PermissionsModal } from './PermissionsModal.tsx'
 
 export const Permissions: React.FC = () => {
-  const { permissions, platformNames, isLoading, error, fetchPermissions, clearError } = usePermissionStore()
   const { isSuperUser } = useAuthStore()
 
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [modalAction, setModalAction] = useState<ModalAction | null>(null)
-  const [selectedStatus, setSelectedStatus] = useState<string>('all')
-  const [selectedPlatform, setSelectedPlatform] = useState<string>('all')
-  const [selectedPermission, setSelectedPermission] = useState<Permission | null>(null)
-  const [includeDeleted, setIncludeDeleted] = useState(false)
+  const {
+    selectedStatus,
+    selectedPlatform,
+    isIncludeDeleted,
+    setSelectedStatus,
+    setSelectedPlatform,
+    setIncludeDeleted,
+    isPermissionModalOpen,
+    openPermissionModal,
+  } = usePermissionStore()
 
   const hasActiveFilters = selectedStatus != 'all' || selectedPlatform !== 'all'
 
-  useEffect(() => {
-    void fetchPermissions(DEFAULT_PARAMS)
-  }, [fetchPermissions])
+  const params = { ...DEFAULT_PARAMS, isIncludeDeleted }
+  const { data, isLoading, error } = useReadPermissions(params)
+
+  const permissions = useMemo(() => data?.permissions ?? [], [data?.permissions])
+  const platformNames = useMemo(() => data?.platformNames ?? [], [data?.platformNames])
 
   const filteredPermissions = useMemo(() => {
     return permissions.filter((permission) => {
@@ -54,28 +59,8 @@ export const Permissions: React.FC = () => {
     })
   }, [permissions, selectedStatus, selectedPlatform])
 
-  const handleRefresh = () => {
-    clearError()
-    handleClearFilters()
-    void fetchPermissions({
-      ...DEFAULT_PARAMS,
-      isIncludeDeleted: includeDeleted,
-    })
-  }
-
   const handleModalOpen = (permission: Permission | null, action: ModalAction) => {
-    setModalAction(action)
-    setSelectedPermission(permission)
-    setIsModalOpen(true)
-  }
-
-  const handleModalClose = () => {
-    setSelectedPermission(null)
-    setIsModalOpen(false)
-  }
-
-  const handleModalSuccess = () => {
-    void fetchPermissions(DEFAULT_PARAMS)
+    openPermissionModal(action, permission)
   }
 
   const handleClearFilters = () => {
@@ -164,20 +149,6 @@ export const Permissions: React.FC = () => {
           </Typography>
         </Paper>
 
-        {error && (
-          <Alert
-            severity='error'
-            sx={{ mb: 3 }}
-            action={
-              <Button color='inherit' size='small' onClick={handleRefresh}>
-                Retry
-              </Button>
-            }
-          >
-            {error}
-          </Alert>
-        )}
-
         {isLoading && permissions.length === 0 && (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
             <CircularProgress />
@@ -202,7 +173,7 @@ export const Permissions: React.FC = () => {
               <FormControlLabel
                 control={
                   <Checkbox
-                    checked={includeDeleted}
+                    checked={isIncludeDeleted}
                     onChange={(e) => setIncludeDeleted(e.target.checked)}
                     size='small'
                     disabled={isLoading}
@@ -212,27 +183,9 @@ export const Permissions: React.FC = () => {
                 sx={{ mr: 2 }}
               />
             )}
-            <Button
-              variant='outlined'
-              onClick={handleRefresh}
-              disabled={isLoading}
-              startIcon={isLoading ? <CircularProgress size={16} /> : undefined}
-            >
-              {isLoading ? 'Refreshing...' : 'Refresh'}
-            </Button>
           </Box>
         )}
-
-        {modalAction && (
-          <PermissionsModal
-            action={modalAction}
-            open={isModalOpen}
-            onClose={handleModalClose}
-            onSuccess={handleModalSuccess}
-            permission={selectedPermission}
-            isSuperUser={isSuperUser}
-          />
-        )}
+        {isPermissionModalOpen && <PermissionsModal />}
       </Paper>
     </Container>
   )
