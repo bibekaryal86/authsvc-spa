@@ -2,7 +2,6 @@ import { EntityTable } from '@components'
 import { ACTION_TYPE, DEFAULT_PARAMS, type ModalAction } from '@constants'
 import { Add, FilterList } from '@mui/icons-material'
 import {
-  Alert,
   Box,
   Button,
   Checkbox,
@@ -18,27 +17,25 @@ import {
   Select,
   Typography,
 } from '@mui/material'
+import { useReadRoles } from '@queries'
 import { useAuthStore, useRoleStore } from '@stores'
 import type { Role } from '@types'
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useMemo } from 'react'
 
 import { RolesModal } from './RolesModal.tsx'
 
 export const Roles: React.FC = () => {
-  const { roles, isLoading, error, fetchRoles, clearError } = useRoleStore()
   const { isSuperUser } = useAuthStore()
 
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [modalAction, setModalAction] = useState<ModalAction | null>(null)
-  const [selectedStatus, setSelectedStatus] = useState<string>('all')
-  const [selectedRole, setSelectedRole] = useState<Role | null>(null)
-  const [includeDeleted, setIncludeDeleted] = useState(false)
+  const { selectedStatus, isIncludeDeleted, setSelectedStatus, setIncludeDeleted, isRoleModalOpen, openRoleModal } =
+    useRoleStore()
 
   const hasActiveFilters = selectedStatus != 'all'
 
-  useEffect(() => {
-    void fetchRoles(DEFAULT_PARAMS)
-  }, [fetchRoles])
+  const params = { ...DEFAULT_PARAMS, isIncludeDeleted }
+  const { data, isLoading, error } = useReadRoles(params)
+
+  const roles = useMemo(() => data?.roles ?? [], [data?.roles])
 
   const filteredRoles = useMemo(() => {
     return roles.filter((role) => {
@@ -52,28 +49,8 @@ export const Roles: React.FC = () => {
     })
   }, [roles, selectedStatus])
 
-  const handleRefresh = () => {
-    clearError()
-    handleClearFilters()
-    void fetchRoles({
-      ...DEFAULT_PARAMS,
-      isIncludeDeleted: includeDeleted,
-    })
-  }
-
   const handleModalOpen = (role: Role | null, action: ModalAction) => {
-    setModalAction(action)
-    setSelectedRole(role)
-    setIsModalOpen(true)
-  }
-
-  const handleModalClose = () => {
-    setSelectedRole(null)
-    setIsModalOpen(false)
-  }
-
-  const handleModalSuccess = () => {
-    void fetchRoles(DEFAULT_PARAMS)
+    openRoleModal(action, role)
   }
 
   const handleClearFilters = () => {
@@ -141,20 +118,6 @@ export const Roles: React.FC = () => {
           </Typography>
         </Paper>
 
-        {error && (
-          <Alert
-            severity='error'
-            sx={{ mb: 3 }}
-            action={
-              <Button color='inherit' size='small' onClick={handleRefresh}>
-                Retry
-              </Button>
-            }
-          >
-            {error}
-          </Alert>
-        )}
-
         {isLoading && roles.length === 0 && (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
             <CircularProgress />
@@ -179,7 +142,7 @@ export const Roles: React.FC = () => {
               <FormControlLabel
                 control={
                   <Checkbox
-                    checked={includeDeleted}
+                    checked={isIncludeDeleted}
                     onChange={(e) => setIncludeDeleted(e.target.checked)}
                     size='small'
                     disabled={isLoading}
@@ -189,27 +152,10 @@ export const Roles: React.FC = () => {
                 sx={{ mr: 2 }}
               />
             )}
-            <Button
-              variant='outlined'
-              onClick={handleRefresh}
-              disabled={isLoading}
-              startIcon={isLoading ? <CircularProgress size={16} /> : undefined}
-            >
-              {isLoading ? 'Refreshing...' : 'Refresh'}
-            </Button>
           </Box>
         )}
 
-        {modalAction && (
-          <RolesModal
-            action={modalAction}
-            open={isModalOpen}
-            onClose={handleModalClose}
-            onSuccess={handleModalSuccess}
-            role={selectedRole}
-            isSuperUser={isSuperUser}
-          />
-        )}
+        {isRoleModalOpen && <RolesModal />}
       </Paper>
     </Container>
   )

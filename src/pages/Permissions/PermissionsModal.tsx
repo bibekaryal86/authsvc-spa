@@ -250,7 +250,7 @@ export const PermissionsModal: React.FC = () => {
                 Cancel
               </Button>
               <Button
-                onClick={() => void handleSubmit()}
+                onClick={(e) => void handleSubmit(e)}
                 color={action === ACTION_TYPE.DELETE ? (isHardDelete ? 'error' : 'warning') : 'warning'}
                 variant='contained'
                 disabled={isLoading}
