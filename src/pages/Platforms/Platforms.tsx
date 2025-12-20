@@ -26,7 +26,6 @@ import { PlatformsModal } from './PlatformsModal.tsx'
 
 export const Platforms: React.FC = () => {
   const { isSuperUser } = useAuthStore()
-
   const {
     selectedStatus,
     isIncludeDeleted,

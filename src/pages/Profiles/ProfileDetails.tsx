@@ -1,4 +1,4 @@
-import { HistoryTable, PprModal, PprTable } from '@components'
+import { HistoryTable, PprTable, Spinner } from '@components'
 import { ACTION_TYPE, DEFAULT_PARAMS, type PrpPprAction } from '@constants'
 import { Add, ArrowBack, History } from '@mui/icons-material'
 import {
@@ -7,7 +7,6 @@ import {
   Typography,
   Box,
   Button,
-  CircularProgress,
   Alert,
   Grid,
   Card,
@@ -15,43 +14,27 @@ import {
   Divider,
   Collapse,
 } from '@mui/material'
+import { useReadProfileById } from '@queries'
 import { useProfileStore, useAuthStore } from '@stores'
-import type { PlatformProfileRole, Profile } from '@types'
+import type { PlatformProfileRole } from '@types'
 import { getNumber, getUserFullName } from '@utils'
-import React, { useEffect, useState } from 'react'
+import React from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 
 export const ProfileDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { isLoading, error, fetchProfileById, clearError } = useProfileStore()
   const { isSuperUser } = useAuthStore()
-  const [profile, setProfile] = useState<Profile | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [showHistory, setShowHistory] = useState(false)
-  const [isPprModalOpen, setIsPprModalOpen] = useState(false)
-  const [selectedPpr, setSelectedPpr] = useState<PlatformProfileRole | null>(null)
-  const [pprModalAction, setPprModalAction] = useState<PrpPprAction | null>(null)
 
-  useEffect(() => {
-    if (!id) return
+  const { isShowHistory, setShowHistory, setSelectedProfile, openPprModal, setIncludeDeleted } = useProfileStore()
 
-    let isMounted = true
-
-    const loadProfile = async () => {
-      const foundProfile = await fetchProfileById(getNumber(id), { ...DEFAULT_PARAMS, isForceFetch: true })
-      if (isMounted) {
-        setProfile(foundProfile)
-        setLoading(false)
-      }
-    }
-
-    void loadProfile()
-
-    return () => {
-      isMounted = false
-    }
-  }, [id, fetchProfileById])
+  const profileId = getNumber(id)
+  const {
+    data: profile,
+    isLoading,
+    error,
+  } = useReadProfileById(profileId, { ...DEFAULT_PARAMS, isForceFetch: true, isIncludeHistory: isShowHistory })
+  setSelectedProfile(profile ? profile : null)
 
   const handleBack = () => {
     void navigate(-1)
@@ -61,53 +44,22 @@ export const ProfileDetails: React.FC = () => {
     void navigate('/profiles')
   }
 
-  const handleDeletedLookup = async () => {
-    const foundProfile = await fetchProfileById(getNumber(id), {
-      ...DEFAULT_PARAMS,
-      isIncludeDeleted: true,
-      isForceFetch: true,
-    })
-    setProfile(foundProfile)
+  const handleViewHistory = async () => {
+    setShowHistory(!isShowHistory)
   }
 
-  const handleViewHistory = async () => {
-    setShowHistory(!showHistory)
-    if (profile && (!profile.history || profile.history.length === 0)) {
-      const foundProfile = await fetchProfileById(getNumber(id), {
-        ...DEFAULT_PARAMS,
-        isIncludeHistory: true,
-        isForceFetch: true,
-      })
-      setProfile(foundProfile)
-    }
+  const handleDeletedLookup = async () => {
+    setIncludeDeleted(true)
   }
 
   const handlePprModalOpen = (action: PrpPprAction, selectedPpr: PlatformProfileRole | null) => {
-    setSelectedPpr(selectedPpr)
-    setPprModalAction(action)
-    setIsPprModalOpen(true)
+    openPprModal(action, selectedPpr)
   }
 
-  const handlePprModalClose = () => {
-    setPprModalAction(null)
-    setSelectedPpr(null)
-    setIsPprModalOpen(false)
-  }
-
-  const handlePprModalSuccess = async () => {
-    const updatedProfile = await fetchProfileById(getNumber(id), {
-      ...DEFAULT_PARAMS,
-      isForceFetch: true,
-    })
-    setProfile(updatedProfile)
-    setPprModalAction(null)
-    setSelectedPpr(null)
-  }
-
-  if (loading || isLoading) {
+  if (isLoading) {
     return (
       <Container maxWidth='lg' sx={{ py: 4, display: 'flex', justifyContent: 'center' }}>
-        <CircularProgress />
+        <Spinner />
       </Container>
     )
   }
@@ -122,7 +74,6 @@ export const ProfileDetails: React.FC = () => {
               color='inherit'
               size='small'
               onClick={() => {
-                clearError()
                 handleBackToProfiles()
               }}
             >
@@ -130,7 +81,7 @@ export const ProfileDetails: React.FC = () => {
             </Button>
           }
         >
-          {error}
+          {error.message}
         </Alert>
         {isSuperUser && (
           <Alert
@@ -414,7 +365,7 @@ export const ProfileDetails: React.FC = () => {
             </Button>
           </Box>
 
-          <Collapse in={showHistory}>
+          <Collapse in={isShowHistory}>
             <Box sx={{ mt: 4, pt: 3, borderTop: 1, borderColor: 'divider' }}>
               <Typography variant='h6' gutterBottom fontWeight='medium'>
                 Profile History
@@ -435,15 +386,6 @@ export const ProfileDetails: React.FC = () => {
           </Collapse>
         </Paper>
       </Container>
-      <PprModal
-        open={isPprModalOpen}
-        onClose={handlePprModalClose}
-        onSuccess={() => void handlePprModalSuccess()}
-        action={pprModalAction}
-        initEntity='profile'
-        selectedEntity={profile}
-        selectedPpr={selectedPpr}
-      />
     </>
   )
 }

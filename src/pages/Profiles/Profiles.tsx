@@ -1,7 +1,6 @@
 import { ACTION_TYPE, DEFAULT_PARAMS, type ModalActionExtended } from '@constants'
 import { Add, FilterList } from '@mui/icons-material'
 import {
-  Alert,
   Box,
   Button,
   Checkbox,
@@ -17,28 +16,31 @@ import {
   Select,
   Typography,
 } from '@mui/material'
+import { useReadProfiles } from '@queries'
 import { useAuthStore, useProfileStore } from '@stores'
 import type { Profile } from '@types'
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useMemo } from 'react'
 
 import { ProfilesModal } from './ProfilesModal.tsx'
 import { ProfilesTable } from './ProfilesTable.tsx'
 
 export const Profiles: React.FC = () => {
-  const { profiles, isLoading, error, fetchProfiles, clearError } = useProfileStore()
   const { isSuperUser } = useAuthStore()
-
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [modalAction, setModalAction] = useState<ModalActionExtended | null>(null)
-  const [selectedStatus, setSelectedStatus] = useState<string>('all')
-  const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null)
-  const [includeDeleted, setIncludeDeleted] = useState(false)
+  const {
+    selectedStatus,
+    isIncludeDeleted,
+    setSelectedStatus,
+    setIncludeDeleted,
+    isProfileModalOpen,
+    openProfileModal,
+  } = useProfileStore()
 
   const hasActiveFilters = selectedStatus != 'all'
 
-  useEffect(() => {
-    void fetchProfiles(DEFAULT_PARAMS)
-  }, [fetchProfiles])
+  const params = { ...DEFAULT_PARAMS, isIncludeDeleted }
+  const { data, isLoading, error } = useReadProfiles(params)
+
+  const profiles = useMemo(() => data?.profiles ?? [], [data?.profiles])
 
   const filteredProfiles = useMemo(() => {
     return profiles.filter((profile) => {
@@ -52,28 +54,8 @@ export const Profiles: React.FC = () => {
     })
   }, [profiles, selectedStatus])
 
-  const handleRefresh = () => {
-    clearError()
-    handleClearFilters()
-    void fetchProfiles({
-      ...DEFAULT_PARAMS,
-      isIncludeDeleted: includeDeleted,
-    })
-  }
-
   const handleModalOpen = (profile: Profile | null, action: ModalActionExtended) => {
-    setModalAction(action)
-    setSelectedProfile(profile)
-    setIsModalOpen(true)
-  }
-
-  const handleModalClose = () => {
-    setSelectedProfile(null)
-    setIsModalOpen(false)
-  }
-
-  const handleModalSuccess = () => {
-    void fetchProfiles(DEFAULT_PARAMS)
+    openProfileModal(action, profile)
   }
 
   const handleClearFilters = () => {
@@ -141,20 +123,6 @@ export const Profiles: React.FC = () => {
           </Typography>
         </Paper>
 
-        {error && (
-          <Alert
-            severity='error'
-            sx={{ mb: 3 }}
-            action={
-              <Button color='inherit' size='small' onClick={handleRefresh}>
-                Retry
-              </Button>
-            }
-          >
-            {error}
-          </Alert>
-        )}
-
         {isLoading && profiles.length === 0 && (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
             <CircularProgress />
@@ -169,7 +137,7 @@ export const Profiles: React.FC = () => {
               <FormControlLabel
                 control={
                   <Checkbox
-                    checked={includeDeleted}
+                    checked={isIncludeDeleted}
                     onChange={(e) => setIncludeDeleted(e.target.checked)}
                     size='small'
                     disabled={isLoading}
@@ -179,27 +147,10 @@ export const Profiles: React.FC = () => {
                 sx={{ mr: 2 }}
               />
             )}
-            <Button
-              variant='outlined'
-              onClick={handleRefresh}
-              disabled={isLoading}
-              startIcon={isLoading ? <CircularProgress size={16} /> : undefined}
-            >
-              {isLoading ? 'Refreshing...' : 'Refresh'}
-            </Button>
           </Box>
         )}
 
-        {modalAction && (
-          <ProfilesModal
-            action={modalAction}
-            open={isModalOpen}
-            onClose={handleModalClose}
-            onSuccess={handleModalSuccess}
-            profile={selectedProfile}
-            isSuperUser={isSuperUser}
-          />
-        )}
+        {isProfileModalOpen && <ProfilesModal />}
       </Paper>
     </Container>
   )

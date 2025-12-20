@@ -26,7 +26,6 @@ import { RolesModal } from './RolesModal.tsx'
 
 export const Roles: React.FC = () => {
   const { isSuperUser } = useAuthStore()
-
   const { selectedStatus, isIncludeDeleted, setSelectedStatus, setIncludeDeleted, isRoleModalOpen, openRoleModal } =
     useRoleStore()
 

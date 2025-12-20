@@ -26,7 +26,6 @@ import { PermissionsModal } from './PermissionsModal.tsx'
 
 export const Permissions: React.FC = () => {
   const { isSuperUser } = useAuthStore()
-
   const {
     selectedStatus,
     selectedPlatform,
