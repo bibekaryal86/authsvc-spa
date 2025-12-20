@@ -27,3 +27,4 @@ lerna-debug.log*
 
 .env
 .vite
+gcp/dist

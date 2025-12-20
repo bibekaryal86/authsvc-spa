@@ -1,0 +1,18 @@
+runtime: nodejs24
+env: standard
+instance_class: F1
+handlers:
+  - url: /
+    static_files: dist/index.html
+    upload: dist/index.html
+  - url: /(.*)$
+    static_files: dist/\1
+    upload: dist/(.*)
+automatic_scaling:
+  min_instances: 1
+  max_instances: 1
+  min_idle_instances: 1
+  max_idle_instances: 1
+  min_pending_latency: 5000ms
+  max_pending_latency: 10000ms
+  max_concurrent_requests: 80
