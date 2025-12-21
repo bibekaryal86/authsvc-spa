@@ -1,6 +1,3 @@
-TODO
-when logging out, clear query cache also
-
 # Auth Service Admin Portal
 
 ## Overview
