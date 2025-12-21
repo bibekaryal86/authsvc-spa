@@ -1,4 +1,4 @@
-import { ACTION_TYPE, type ModalActionExtended } from '@constants'
+import { ACTION_TYPE } from '@constants'
 import {
   Dialog,
   DialogTitle,
@@ -6,7 +6,6 @@ import {
   DialogActions,
   TextField,
   Button,
-  Alert,
   Box,
   Typography,
   CircularProgress,
@@ -15,20 +14,19 @@ import {
   Checkbox,
   Grid,
 } from '@mui/material'
-import { authService, profileService } from '@services'
-import { useAlertStore } from '@stores'
+import {
+  useCreateProfile,
+  useDeleteProfile,
+  useRestoreProfile,
+  useUpdateProfile,
+  useUpdateProfileEmail,
+  useUpdateProfilePassword,
+} from '@queries'
+import { authService } from '@services'
+import { useAlertStore, useAuthStore, useProfileStore } from '@stores'
 import type { Profile, ProfileAddress, ProfileAddressRequest, ProfileRequest } from '@types'
 import { extractAxiosErrorMessage } from '@utils'
-import React, { useState, useEffect, useCallback } from 'react'
-
-interface ProfilesModalProps {
-  action: ModalActionExtended
-  open: boolean
-  onClose: () => void
-  onSuccess: () => void
-  profile: Profile | null
-  isSuperUser?: boolean
-}
+import React, { useState, useCallback, useMemo } from 'react'
 
 interface EmailPasswordForm {
   email: string
@@ -60,6 +58,31 @@ const DefaultEmailPasswordForm: EmailPasswordForm = {
   email: '',
   newPassword: '',
   confirmPassword: '',
+}
+
+function defaultProfileFormData(profile: Profile | null): ProfileRequest {
+  if (profile) {
+    return {
+      addressRequest: profile.profileAddress
+        ? {
+            city: profile.profileAddress.city,
+            country: profile.profileAddress.country ? profile.profileAddress.country : 'US',
+            id: profile.profileAddress.id,
+            postalCode: profile.profileAddress.postalCode,
+            profileId: profile.id,
+            state: profile.profileAddress.state,
+            street: profile.profileAddress.street,
+          }
+        : DefaultProfileAddressRequest,
+      email: profile.email,
+      firstName: profile.firstName,
+      guestUser: false,
+      lastName: profile.lastName,
+      password: '',
+      phone: profile.phone,
+    }
+  }
+  return DefaultProfileRequest
 }
 
 function checkForChanges(formData: ProfileRequest, profile?: Profile | null): boolean {
@@ -96,24 +119,68 @@ function hasAddressChanged(request: ProfileAddressRequest | null, profile: Profi
   )
 }
 
-export const ProfilesModal: React.FC<ProfilesModalProps> = ({
-  action,
-  open,
-  onClose,
-  onSuccess,
-  profile,
-  isSuperUser = false,
-}) => {
+export const ProfilesModal: React.FC = () => {
+  const { isSuperUser } = useAuthStore()
   const { showAlert } = useAlertStore()
-  const [formData, setFormData] = useState<ProfileRequest>(DefaultProfileRequest)
+
+  const {
+    isProfileModalOpen,
+    profileModalAction: action,
+    selectedProfile: profile,
+    closeProfileModal,
+  } = useProfileStore()
+
+  const createProfile = useCreateProfile()
+  const updateProfile = useUpdateProfile()
+  const updateProfileEmail = useUpdateProfileEmail()
+  const updateProfilePassword = useUpdateProfilePassword()
+  const deleteProfile = useDeleteProfile()
+  const restoreProfile = useRestoreProfile()
+
+  const [profileFormData, setProfileFormData] = useState<ProfileRequest>({ ...defaultProfileFormData(profile) })
   const [emailPwdFormData, setEmailPwdFormData] = useState<EmailPasswordForm>(DefaultEmailPasswordForm)
 
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [showUnsavedWarning, setShowUnsavedWarning] = useState(false)
   const [isHardDelete, setIsHardDelete] = useState(false)
+
+  const resetForm = useCallback(() => {
+    if (action === ACTION_TYPE.UPDATE_EMAIL || action === ACTION_TYPE.UPDATE_PASSWORD) {
+      setEmailPwdFormData(DefaultEmailPasswordForm)
+      setProfileFormData(DefaultProfileRequest)
+    } else if (action === ACTION_TYPE.UPDATE && profile) {
+      setProfileFormData(defaultProfileFormData(profile))
+      setEmailPwdFormData(DefaultEmailPasswordForm)
+    } else {
+      setProfileFormData(DefaultProfileRequest)
+      setEmailPwdFormData(DefaultEmailPasswordForm)
+    }
+    setIsHardDelete(profile ? profile.deletedDate !== null : false)
+  }, [action, profile])
+
+  const hasUnsavedChanges = useMemo(() => {
+    if (action === ACTION_TYPE.CREATE || action === ACTION_TYPE.UPDATE) {
+      return checkForChanges(profileFormData, profile)
+    }
+  }, [action, profile, profileFormData])
+
+  if (
+    !action ||
+    ((action === ACTION_TYPE.DELETE ||
+      action === ACTION_TYPE.RESTORE ||
+      action === ACTION_TYPE.UPDATE ||
+      action === ACTION_TYPE.UPDATE_EMAIL ||
+      action === ACTION_TYPE.UPDATE_PASSWORD) &&
+      !profile)
+  )
+    return null
+
+  const isLoading =
+    createProfile.isPending ||
+    updateProfile.isPending ||
+    updateProfileEmail.isPending ||
+    updateProfilePassword.isPending ||
+    deleteProfile.isPending ||
+    restoreProfile.isPending
 
   const modalConfig = {
     CREATE: {
@@ -166,52 +233,9 @@ export const ProfilesModal: React.FC<ProfilesModalProps> = ({
     },
   }[action]
 
-  const resetForm = useCallback(() => {
-    if (action === ACTION_TYPE.UPDATE_EMAIL || action === ACTION_TYPE.UPDATE_PASSWORD) {
-      setEmailPwdFormData(DefaultEmailPasswordForm)
-    } else if (action === ACTION_TYPE.UPDATE && profile) {
-      setFormData({
-        email: profile.email,
-        firstName: profile.firstName,
-        guestUser: false,
-        lastName: profile.lastName,
-        password: '',
-        phone: profile.phone,
-        addressRequest: {
-          city: profile.profileAddress?.city || '',
-          country: profile.profileAddress?.country || '',
-          id: profile.profileAddress?.id || 0,
-          postalCode: profile.profileAddress?.postalCode || '',
-          profileId: profile.id,
-          state: profile.profileAddress?.state || '',
-          street: profile.profileAddress?.street || '',
-        },
-      })
-    } else {
-      setFormData(DefaultProfileRequest)
-    }
-    setError(null)
-    setHasUnsavedChanges(false)
-    setShowUnsavedWarning(false)
-    setIsHardDelete(profile ? profile.deletedDate !== null : false)
-  }, [action, profile])
-
-  useEffect(() => {
-    if (open) {
-      resetForm()
-    }
-  }, [open, resetForm])
-
-  useEffect(() => {
-    if (action === ACTION_TYPE.CREATE || action === ACTION_TYPE.UPDATE) {
-      const hasChanges = checkForChanges(formData, profile)
-      setHasUnsavedChanges(hasChanges)
-    }
-  }, [formData, action, profile])
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleProfileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
-    setFormData((prev) => ({
+    setProfileFormData((prev) => ({
       ...prev,
       [name]: value,
     }))
@@ -219,7 +243,7 @@ export const ProfilesModal: React.FC<ProfilesModalProps> = ({
 
   const handleAddressChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
-    setFormData((prev) => ({
+    setProfileFormData((prev) => ({
       ...prev,
       addressRequest: {
         ...prev.addressRequest,
@@ -238,62 +262,55 @@ export const ProfilesModal: React.FC<ProfilesModalProps> = ({
     }))
   }
 
-  const handleSubmit = (e?: React.FormEvent) => {
-    if (e) e.preventDefault()
-    setLoading(true)
-    setError(null)
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
 
-    const submitAsync = async () => {
-      try {
-        if (profile) {
-          if (action === ACTION_TYPE.UPDATE) {
-            await profileService.updateProfile(profile.id, formData)
-          } else if (action === ACTION_TYPE.UPDATE_EMAIL) {
-            await profileService.updateProfileEmail(profile.id, {
-              oldEmail: profile.email,
-              newEmail: emailPwdFormData.email,
-            })
-          } else if (action === ACTION_TYPE.UPDATE_PASSWORD) {
-            if (emailPwdFormData.newPassword !== emailPwdFormData.confirmPassword) {
-              showAlert('error', 'Passwords do not match.')
-              return
-            }
-
-            if (emailPwdFormData.newPassword.length < 8) {
-              showAlert('error', 'Password must be at least 8 characters long.')
-              return
-            }
-            await profileService.updateProfilePassword(profile.id, {
-              email: profile.email,
-              password: emailPwdFormData.newPassword,
-            })
-          } else if (action === ACTION_TYPE.DELETE) {
-            await profileService.deleteProfile(profile.id, isHardDelete)
-          } else if (action === ACTION_TYPE.RESTORE) {
-            await profileService.restoreProfile(profile.id)
-          } else if (action === ACTION_TYPE.VALIDATE) {
-            await authService.validateProfileInit(profile.email)
-          } else if (action === ACTION_TYPE.RESET) {
-            await authService.resetProfileInit(profile.email)
+    try {
+      if (profile) {
+        if (action === ACTION_TYPE.UPDATE) {
+          await updateProfile.mutateAsync({
+            id: profile.id,
+            payload: profileFormData,
+          })
+        } else if (action === ACTION_TYPE.UPDATE_EMAIL) {
+          await updateProfileEmail.mutateAsync({
+            id: profile.id,
+            payload: { oldEmail: profile.email, newEmail: emailPwdFormData.email },
+          })
+        } else if (action === ACTION_TYPE.UPDATE_PASSWORD) {
+          if (emailPwdFormData.newPassword !== emailPwdFormData.confirmPassword) {
+            showAlert('error', 'Passwords do not match.')
+            return
           }
-        } else if (action === ACTION_TYPE.CREATE) {
-          await authService.createProfile(formData)
+
+          if (emailPwdFormData.newPassword.length < 8) {
+            showAlert('error', 'Password must be at least 8 characters long.')
+            return
+          }
+          await updateProfilePassword.mutateAsync({
+            id: profile.id,
+            payload: { email: profile.email, password: emailPwdFormData.newPassword },
+          })
+        } else if (action === ACTION_TYPE.DELETE) {
+          await deleteProfile.mutateAsync({ id: profile.id, isHardDelete })
+        } else if (action === ACTION_TYPE.RESTORE) {
+          await restoreProfile.mutateAsync(profile.id)
+        } else if (action === ACTION_TYPE.VALIDATE) {
+          await authService.validateProfileInit(profile.email)
+        } else if (action === ACTION_TYPE.RESET) {
+          await authService.resetProfileInit(profile.email)
         }
-
-        showAlert('success', modalConfig.success)
-        onSuccess()
-        resetForm()
-        onClose()
-      } catch (err) {
-        const errorMessage = extractAxiosErrorMessage(err)
-        setError(errorMessage)
-        showAlert('error', `${modalConfig.errorPrefix}: ${errorMessage}`)
-      } finally {
-        setLoading(false)
+      } else if (action === ACTION_TYPE.CREATE) {
+        await createProfile.mutateAsync(profileFormData)
       }
-    }
 
-    void submitAsync()
+      showAlert('success', modalConfig.success)
+      resetForm()
+      closeProfileModal()
+    } catch (err) {
+      const errorMessage = extractAxiosErrorMessage(err)
+      showAlert('error', `${modalConfig.errorPrefix}: ${errorMessage}`)
+    }
   }
 
   const handleClose = () => {
@@ -301,56 +318,40 @@ export const ProfilesModal: React.FC<ProfilesModalProps> = ({
       setShowUnsavedWarning(true)
     } else {
       resetForm()
-      onClose()
+      closeProfileModal()
     }
   }
 
   const handleConfirmClose = () => {
     resetForm()
     setShowUnsavedWarning(false)
-    onClose()
+    closeProfileModal()
   }
 
   const handleCancelClose = () => setShowUnsavedWarning(false)
 
-  if (
-    (action === ACTION_TYPE.DELETE ||
-      action === ACTION_TYPE.RESTORE ||
-      action === ACTION_TYPE.UPDATE ||
-      action === ACTION_TYPE.UPDATE_EMAIL ||
-      action === ACTION_TYPE.UPDATE_PASSWORD) &&
-    !profile
-  )
-    return null
-
   return (
     <>
-      <Dialog open={open} onClose={handleClose} maxWidth='md' fullWidth>
+      <Dialog open={isProfileModalOpen} onClose={handleClose} maxWidth='md' fullWidth>
         {' '}
         {(action === ACTION_TYPE.CREATE || action === ACTION_TYPE.UPDATE) && (
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={(e) => void handleSubmit(e)}>
             <DialogTitle>
               <Typography fontWeight='bold'>{modalConfig.title}</Typography>
             </DialogTitle>
 
             <DialogContent>
               <Box sx={{ pt: 2, display: 'flex', flexDirection: 'column', gap: 3 }}>
-                {error && (
-                  <Alert severity='error' sx={{ mb: 2 }}>
-                    {error}
-                  </Alert>
-                )}
-
                 <Grid container spacing={3}>
                   <Grid size={{ xs: 12, md: 6 }}>
                     <TextField
                       required
                       label='First Name'
                       name='firstName'
-                      value={formData.firstName}
-                      onChange={handleChange}
+                      value={profileFormData.firstName}
+                      onChange={handleProfileChange}
                       fullWidth
-                      disabled={loading}
+                      disabled={isLoading}
                       placeholder='John'
                     />
                   </Grid>
@@ -360,10 +361,10 @@ export const ProfilesModal: React.FC<ProfilesModalProps> = ({
                       required
                       label='Last Name'
                       name='lastName'
-                      value={formData.lastName}
-                      onChange={handleChange}
+                      value={profileFormData.lastName}
+                      onChange={handleProfileChange}
                       fullWidth
-                      disabled={loading}
+                      disabled={isLoading}
                       placeholder='Doe'
                     />
                   </Grid>
@@ -374,10 +375,10 @@ export const ProfilesModal: React.FC<ProfilesModalProps> = ({
                       label='Email'
                       name='email'
                       type='email'
-                      value={formData.email}
-                      onChange={handleChange}
+                      value={profileFormData.email}
+                      onChange={handleProfileChange}
                       fullWidth
-                      disabled={loading || action === ACTION_TYPE.UPDATE}
+                      disabled={isLoading || action === ACTION_TYPE.UPDATE}
                       placeholder='john.doe@example.com'
                     />
                   </Grid>
@@ -386,10 +387,10 @@ export const ProfilesModal: React.FC<ProfilesModalProps> = ({
                     <TextField
                       label='Phone'
                       name='phone'
-                      value={formData.phone || ''}
-                      onChange={handleChange}
+                      value={profileFormData.phone || ''}
+                      onChange={handleProfileChange}
                       fullWidth
-                      disabled={loading}
+                      disabled={isLoading}
                       placeholder='+1 (555) 123-4567'
                     />
                   </Grid>
@@ -400,10 +401,10 @@ export const ProfilesModal: React.FC<ProfilesModalProps> = ({
                       label='Password'
                       name='password'
                       type='password'
-                      value={formData.password || ''}
-                      onChange={handleChange}
+                      value={profileFormData.password || ''}
+                      onChange={handleProfileChange}
                       fullWidth
-                      disabled={action !== ACTION_TYPE.CREATE}
+                      disabled={isLoading || action !== ACTION_TYPE.CREATE}
                       placeholder='Enter password'
                     />
                   </Grid>
@@ -413,9 +414,9 @@ export const ProfilesModal: React.FC<ProfilesModalProps> = ({
                       <FormControlLabel
                         control={
                           <Checkbox
-                            checked={formData.guestUser}
-                            onChange={(e) => setFormData((prev) => ({ ...prev, guestUser: e.target.checked }))}
-                            disabled={loading}
+                            checked={profileFormData.guestUser}
+                            onChange={(e) => setProfileFormData((prev) => ({ ...prev, guestUser: e.target.checked }))}
+                            disabled={isLoading}
                           />
                         }
                         label='Guest User'
@@ -434,10 +435,10 @@ export const ProfilesModal: React.FC<ProfilesModalProps> = ({
                       <TextField
                         label='Street Address'
                         name='street'
-                        value={formData.addressRequest?.street || ''}
+                        value={profileFormData.addressRequest?.street || ''}
                         onChange={handleAddressChange}
                         fullWidth
-                        disabled={loading}
+                        disabled={isLoading}
                         placeholder='123 Main St'
                       />
                     </Grid>
@@ -446,10 +447,10 @@ export const ProfilesModal: React.FC<ProfilesModalProps> = ({
                       <TextField
                         label='City'
                         name='city'
-                        value={formData.addressRequest?.city || ''}
+                        value={profileFormData.addressRequest?.city || ''}
                         onChange={handleAddressChange}
                         fullWidth
-                        disabled={loading}
+                        disabled={isLoading}
                         placeholder='New York'
                       />
                     </Grid>
@@ -458,10 +459,10 @@ export const ProfilesModal: React.FC<ProfilesModalProps> = ({
                       <TextField
                         label='State'
                         name='state'
-                        value={formData.addressRequest?.state || ''}
+                        value={profileFormData.addressRequest?.state || ''}
                         onChange={handleAddressChange}
                         fullWidth
-                        disabled={loading}
+                        disabled={isLoading}
                         placeholder='NY'
                       />
                     </Grid>
@@ -470,10 +471,10 @@ export const ProfilesModal: React.FC<ProfilesModalProps> = ({
                       <TextField
                         label='Postal Code'
                         name='postalCode'
-                        value={formData.addressRequest?.postalCode || ''}
+                        value={profileFormData.addressRequest?.postalCode || ''}
                         onChange={handleAddressChange}
                         fullWidth
-                        disabled={loading}
+                        disabled={isLoading}
                         placeholder='10001'
                       />
                     </Grid>
@@ -482,10 +483,10 @@ export const ProfilesModal: React.FC<ProfilesModalProps> = ({
                       <TextField
                         label='Country'
                         name='country'
-                        value={formData.addressRequest?.country || ''}
+                        value={profileFormData.addressRequest?.country || ''}
                         onChange={handleAddressChange}
                         fullWidth
-                        disabled={loading}
+                        disabled={isLoading}
                         placeholder='United States'
                       />
                     </Grid>
@@ -495,34 +496,28 @@ export const ProfilesModal: React.FC<ProfilesModalProps> = ({
             </DialogContent>
 
             <DialogActions sx={{ px: 3, pb: 3 }}>
-              <Button onClick={handleClose} disabled={loading}>
+              <Button onClick={handleClose} disabled={isLoading}>
                 Cancel
               </Button>
               <Button
                 type='submit'
                 variant='contained'
-                disabled={loading}
-                startIcon={loading ? <CircularProgress size={16} /> : undefined}
+                disabled={isLoading}
+                startIcon={isLoading ? <CircularProgress size={16} /> : undefined}
               >
-                {loading ? 'Processing...' : modalConfig.buttonLabel}
+                {isLoading ? 'Processing...' : modalConfig.buttonLabel}
               </Button>
             </DialogActions>
           </form>
         )}
         {action === ACTION_TYPE.UPDATE_EMAIL && (
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={(e) => void handleSubmit(e)}>
             <DialogTitle>
               <Typography fontWeight='bold'>{modalConfig.title}</Typography>
             </DialogTitle>
 
             <DialogContent>
               <Box sx={{ pt: 2, display: 'flex', flexDirection: 'column', gap: 3 }}>
-                {error && (
-                  <Alert severity='error' sx={{ mb: 2 }}>
-                    {error}
-                  </Alert>
-                )}
-
                 <Grid container spacing={3}>
                   <Grid size={{ xs: 12, md: 6 }}>
                     <TextField
@@ -542,7 +537,7 @@ export const ProfilesModal: React.FC<ProfilesModalProps> = ({
                       value={emailPwdFormData.email}
                       onChange={handleEmailPwdChange}
                       fullWidth
-                      disabled={loading}
+                      disabled={isLoading}
                       placeholder='new@email.com'
                     />
                   </Grid>
@@ -551,34 +546,28 @@ export const ProfilesModal: React.FC<ProfilesModalProps> = ({
             </DialogContent>
 
             <DialogActions sx={{ px: 3, pb: 3 }}>
-              <Button onClick={handleClose} disabled={loading}>
+              <Button onClick={handleClose} disabled={isLoading}>
                 Cancel
               </Button>
               <Button
                 type='submit'
                 variant='contained'
-                disabled={loading}
-                startIcon={loading ? <CircularProgress size={16} /> : undefined}
+                disabled={isLoading}
+                startIcon={isLoading ? <CircularProgress size={16} /> : undefined}
               >
-                {loading ? 'Processing...' : modalConfig.buttonLabel}
+                {isLoading ? 'Processing...' : modalConfig.buttonLabel}
               </Button>
             </DialogActions>
           </form>
         )}
         {action === ACTION_TYPE.UPDATE_PASSWORD && (
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={(e) => void handleSubmit(e)}>
             <DialogTitle>
               <Typography fontWeight='bold'>{modalConfig.title}</Typography>
             </DialogTitle>
 
             <DialogContent>
               <Box sx={{ pt: 2, display: 'flex', flexDirection: 'column', gap: 3 }}>
-                {error && (
-                  <Alert severity='error' sx={{ mb: 2 }}>
-                    {error}
-                  </Alert>
-                )}
-
                 <Grid container spacing={3}>
                   <Grid size={{ xs: 12, md: 6 }}>
                     <TextField required label='Email' name='email' value={profile?.email} fullWidth disabled={true} />
@@ -592,7 +581,7 @@ export const ProfilesModal: React.FC<ProfilesModalProps> = ({
                       value={emailPwdFormData.newPassword}
                       onChange={handleEmailPwdChange}
                       fullWidth
-                      disabled={loading}
+                      disabled={isLoading}
                     />
                   </Grid>
                   <Grid size={{ xs: 12, md: 6 }}>
@@ -604,23 +593,23 @@ export const ProfilesModal: React.FC<ProfilesModalProps> = ({
                       value={emailPwdFormData.confirmPassword}
                       onChange={handleEmailPwdChange}
                       fullWidth
-                      disabled={loading}
+                      disabled={isLoading}
                     />
                   </Grid>
                 </Grid>
               </Box>
             </DialogContent>
             <DialogActions sx={{ px: 3, pb: 3 }}>
-              <Button onClick={handleClose} disabled={loading}>
+              <Button onClick={handleClose} disabled={isLoading}>
                 Cancel
               </Button>
               <Button
                 type='submit'
                 variant='contained'
-                disabled={loading}
-                startIcon={loading ? <CircularProgress size={16} /> : undefined}
+                disabled={isLoading}
+                startIcon={isLoading ? <CircularProgress size={16} /> : undefined}
               >
-                {loading ? 'Processing...' : modalConfig.buttonLabel}
+                {isLoading ? 'Processing...' : modalConfig.buttonLabel}
               </Button>
             </DialogActions>
           </form>
@@ -646,7 +635,7 @@ export const ProfilesModal: React.FC<ProfilesModalProps> = ({
                       checked={isHardDelete}
                       onChange={(e) => setIsHardDelete(e.target.checked)}
                       color='error'
-                      disabled={loading}
+                      disabled={isLoading}
                     />
                   }
                   label='Permanently delete (hard delete)'
@@ -656,16 +645,16 @@ export const ProfilesModal: React.FC<ProfilesModalProps> = ({
             </DialogContent>
 
             <DialogActions>
-              <Button onClick={handleClose} color='inherit' disabled={loading}>
+              <Button onClick={handleClose} color='inherit' disabled={isLoading}>
                 Cancel
               </Button>
               <Button
-                onClick={() => handleSubmit()}
+                onClick={(e) => void handleSubmit(e)}
                 color={action === ACTION_TYPE.DELETE ? (isHardDelete ? 'error' : 'warning') : 'warning'}
                 variant='contained'
-                disabled={loading}
+                disabled={isLoading}
               >
-                {loading ? 'Processing' : modalConfig.buttonLabel}
+                {isLoading ? 'Processing' : modalConfig.buttonLabel}
               </Button>
             </DialogActions>
           </>
@@ -684,16 +673,16 @@ export const ProfilesModal: React.FC<ProfilesModalProps> = ({
             </DialogContent>
 
             <DialogActions>
-              <Button onClick={handleClose} color='inherit' disabled={loading}>
+              <Button onClick={handleClose} color='inherit' disabled={isLoading}>
                 Cancel
               </Button>
               <Button
-                onClick={() => handleSubmit()}
+                onClick={(e) => void handleSubmit(e)}
                 color={action === ACTION_TYPE.VALIDATE ? 'warning' : 'error'}
                 variant='contained'
-                disabled={loading}
+                disabled={isLoading}
               >
-                {loading ? 'Processing' : modalConfig.buttonLabel}
+                {isLoading ? 'Processing' : modalConfig.buttonLabel}
               </Button>
             </DialogActions>
           </>

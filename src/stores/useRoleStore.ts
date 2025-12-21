@@ -1,99 +1,113 @@
-import { DEFAULT_PARAMS } from '@constants'
-import { roleService } from '@services'
-import type { Role, RequestMetadata } from '@types'
-import { extractAxiosErrorMessage } from '@utils'
+import { type ModalAction, type PrpPprAction } from '@constants'
+import type { Role, PlatformProfileRole, PlatformRolePermission } from '@types'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 
 interface RoleState {
-  roles: Role[]
-  isLoading: boolean
-  error: string | null
+  isRoleModalOpen: boolean
+  roleModalAction: ModalAction | null
+  selectedStatus: string
+  isIncludeDeleted: boolean
+  selectedRole: Role | null
+  isShowHistory: boolean
+  isPrpModalOpen: boolean
+  isPprModalOpen: boolean
+  selectedPrp: PlatformRolePermission | null
+  selectedPpr: PlatformProfileRole | null
+  prpModalAction: PrpPprAction | null
+  pprModalAction: PrpPprAction | null
 
-  setRoles: (roles: Role[]) => void
-  setLoading: (loading: boolean) => void
-  setError: (error: string | null) => void
-  clearError: () => void
-  fetchRoles: (params: RequestMetadata) => Promise<void>
-  fetchRoleById: (id: number, params: RequestMetadata) => Promise<Role | null>
-  resetRoles: () => void
+  setSelectedStatus: (v: string) => void
+  setIncludeDeleted: (v: boolean) => void
+  setSelectedRole: (p: Role | null) => void
+  openRoleModal: (action: ModalAction, role?: Role | null) => void
+  closeRoleModal: () => void
+  openPrpModal: (action: PrpPprAction, prp?: PlatformRolePermission | null) => void
+  closePrpModal: () => void
+  openPprModal: (action: PrpPprAction, ppr?: PlatformProfileRole | null) => void
+  closePprModal: () => void
+  setShowHistory: (v: boolean) => void
+
+  resetRoleState: () => void
 }
 
 export const useRoleStore = create<RoleState>()(
   devtools(
-    (set, get) => ({
-      roles: [],
-      isLoading: false,
-      error: null,
+    (set) => ({
+      isRoleModalOpen: false,
+      roleModalAction: null,
+      selectedStatus: 'all',
+      isIncludeDeleted: false,
+      selectedRole: null,
+      isShowHistory: false,
+      isPrpModalOpen: false,
+      isPprModalOpen: false,
+      selectedPrp: null,
+      selectedPpr: null,
+      prpModalAction: null,
+      pprModalAction: null,
 
-      setRoles: (roles: Role[]) => set({ roles }, false, 'role/setRoles'),
+      setSelectedStatus: (v) => set({ selectedStatus: v }, false, 'role/setSelectedStatus'),
 
-      setLoading: (loading: boolean) => set({ isLoading: loading }, false, 'role/setLoading'),
+      setIncludeDeleted: (v) => set({ isIncludeDeleted: v }, false, 'role/setIncludeDeleted'),
 
-      setError: (error: string | null) => set({ error }, false, 'role/setError'),
+      setSelectedRole: (p) => set({ selectedRole: p }, false, 'role/setSelectedRole'),
 
-      clearError: () => set({ error: null }, false, 'role/clearError'),
+      openRoleModal: (action, role = null) =>
+        set(
+          {
+            isRoleModalOpen: true,
+            roleModalAction: action,
+            selectedRole: role,
+          },
+          false,
+          'role/openRoleModal',
+        ),
 
-      fetchRoles: async (params = DEFAULT_PARAMS): Promise<void> => {
-        const { setLoading, setRoles, setError } = get()
+      closeRoleModal: () =>
+        set(
+          {
+            isRoleModalOpen: false,
+            roleModalAction: null,
+            selectedRole: null,
+          },
+          false,
+          'role/closeRoleModal',
+        ),
 
-        try {
-          setLoading(true)
-          setError(null)
+      openPrpModal: (action, prp = null) =>
+        set({ isPrpModalOpen: true, prpModalAction: action, selectedPrp: prp }, false, 'role/openPrpModal'),
 
-          const response = await roleService.readRoles(params)
-          setRoles(response.roles)
-        } catch (error) {
-          const errorMessage = extractAxiosErrorMessage(error)
-          setError(errorMessage)
-          console.error('Error fetching roles:', error)
-        } finally {
-          setLoading(false)
-        }
-      },
+      closePrpModal: () =>
+        set({ isPrpModalOpen: false, prpModalAction: null, selectedPrp: null }, false, 'role/closePrpModal'),
 
-      fetchRoleById: async (id: number, params = DEFAULT_PARAMS): Promise<Role | null> => {
-        const { setLoading, setError, roles } = get()
-        const { isForceFetch } = params
+      openPprModal: (action, ppr = null) =>
+        set({ isPprModalOpen: true, pprModalAction: action, selectedPpr: ppr }, false, 'role/openPprModal'),
 
-        try {
-          if (!isForceFetch) {
-            const existingRole = roles.find((p) => p.id === id)
-            if (existingRole) {
-              console.log('Role found in store, skipping API call')
-              return existingRole
-            }
-          }
+      closePprModal: () =>
+        set({ isPprModalOpen: false, pprModalAction: null, selectedPpr: null }, false, 'role/closePprModal'),
 
-          setLoading(true)
-          setError(null)
+      setShowHistory: (v) => set({ isShowHistory: v }, false, 'role/setShowHistory'),
 
-          const response = await roleService.readRole(id, params)
-
-          if (response.roles.length > 0) {
-            const role = response.roles[0]
-            const currentRoles = get().roles
-
-            const updatedRoles = currentRoles.some((p) => p.id === role.id)
-              ? currentRoles.map((p) => (p.id === role.id ? role : p))
-              : [...currentRoles, role]
-
-            set({ roles: updatedRoles }, false, 'role/updateRoles')
-            return role
-          }
-
-          return null
-        } catch (error) {
-          const errorMessage = extractAxiosErrorMessage(error)
-          setError(errorMessage)
-          console.error('Error fetching role by ID:', error)
-          return null
-        } finally {
-          setLoading(false)
-        }
-      },
-
-      resetRoles: () => set({ roles: [], isLoading: false, error: null }, false, 'role/resetRoles'),
+      resetRoleState: () =>
+        set(
+          {
+            isRoleModalOpen: false,
+            roleModalAction: null,
+            selectedStatus: 'all',
+            isIncludeDeleted: false,
+            selectedRole: null,
+            isShowHistory: false,
+            isPrpModalOpen: false,
+            isPprModalOpen: false,
+            selectedPrp: null,
+            selectedPpr: null,
+            prpModalAction: null,
+            pprModalAction: null,
+          },
+          false,
+          'role/resetRoleState',
+        ),
     }),
     {
       name: 'RoleStore',

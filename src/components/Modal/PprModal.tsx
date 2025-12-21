@@ -1,4 +1,4 @@
-import { ACTION_TYPE, DEFAULT_PARAMS, type PrpPprAction } from '@constants'
+import { ACTION_TYPE, DEFAULT_PARAMS } from '@constants'
 import {
   Modal,
   Box,
@@ -18,88 +18,73 @@ import {
   Checkbox,
   DialogActions,
 } from '@mui/material'
+import {
+  useInvalidateProfiles,
+  useInvalidatePlatforms,
+  useInvalidateRoles,
+  useReadPlatforms,
+  useReadProfiles,
+  useReadRoles,
+} from '@queries'
 import { pprService } from '@services'
 import { useAlertStore, usePlatformStore, useProfileStore, useRoleStore } from '@stores'
-import type { Platform, PlatformProfileRole, Profile, Role } from '@types'
+import type { Platform, Profile, Role } from '@types'
 import { extractAxiosErrorMessage, getNumber, getString, getUserFullName } from '@utils'
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 
 interface PprModalProps {
-  open: boolean
-  onClose: () => void
-  onSuccess: () => void
-  action: PrpPprAction | null
   initEntity: 'platform' | 'profile' | 'role'
-  selectedEntity: Platform | Profile | Role
-  selectedPpr: PlatformProfileRole | null
+  selectedEntity: Platform | Profile | Role | null
 }
 
-export const PprModal: React.FC<PprModalProps> = ({
-  open,
-  onClose,
-  onSuccess,
-  action,
-  initEntity,
-  selectedEntity,
-  selectedPpr,
-}) => {
-  const [loading, setLoading] = useState(false)
+export const PprModal: React.FC<PprModalProps> = ({ initEntity, selectedEntity }) => {
+  const { showAlert } = useAlertStore()
 
+  const platformStore = usePlatformStore()
+  const profileStore = useProfileStore()
+  const roleStore = useRoleStore()
+
+  const { isPprModalOpen, selectedPpr, pprModalAction, closePprModal } =
+    initEntity === 'platform' ? platformStore : initEntity === 'profile' ? profileStore : roleStore
+
+  const [isLoading, setIsLoading] = useState(false)
   const [selectedPlatformId, setSelectedPlatformId] = useState<number | null>(null)
   const [selectedProfileId, setSelectedProfileId] = useState<number | null>(null)
   const [selectedRoleId, setSelectedRoleId] = useState<number | null>(null)
   const [isHardDelete, setIsHardDelete] = useState(false)
 
-  const { showAlert } = useAlertStore()
-  const { platforms, fetchPlatforms, isLoading: isPlatformsLoading } = usePlatformStore()
-  const { profiles, fetchProfiles, isLoading: isProfilesLoading } = useProfileStore()
-  const { roles, fetchRoles, isLoading: isRolesLoading } = useRoleStore()
+  const { data: dataPlatforms, isLoading: isPlatformsLoading } = useReadPlatforms(DEFAULT_PARAMS)
+  const { data: dataProfiles, isLoading: isProfilesLoading } = useReadProfiles(DEFAULT_PARAMS)
+  const { data: dataRoles, isLoading: isRolesLoading } = useReadRoles(DEFAULT_PARAMS)
+
+  const platforms = useMemo(() => dataPlatforms?.platforms ?? [], [dataPlatforms?.platforms])
+  const profiles = useMemo(() => dataProfiles?.profiles ?? [], [dataProfiles?.profiles])
+  const roles = useMemo(() => dataRoles?.roles ?? [], [dataRoles?.roles])
 
   useEffect(() => {
-    if (open) {
-      if (action === ACTION_TYPE.UNASSIGN && selectedPpr) {
+    if (isPprModalOpen && selectedEntity) {
+      if (pprModalAction === ACTION_TYPE.UNASSIGN && selectedPpr) {
         setSelectedPlatformId(initEntity === 'platform' ? selectedEntity.id : selectedPpr.platform.id)
         setSelectedProfileId(initEntity === 'profile' ? selectedEntity.id : selectedPpr.profile.id)
         setSelectedRoleId(initEntity === 'role' ? selectedEntity.id : selectedPpr.role.id)
-      } else if (action === ACTION_TYPE.ASSIGN) {
+      } else if (pprModalAction === ACTION_TYPE.ASSIGN) {
         if (initEntity === 'platform') {
           setSelectedPlatformId(selectedEntity.id)
-          if (profiles.length === 0) {
-            void fetchProfiles(DEFAULT_PARAMS)
-          }
-          if (roles.length === 0) {
-            void fetchRoles(DEFAULT_PARAMS)
-          }
         } else if (initEntity === 'profile') {
           setSelectedProfileId(selectedEntity.id)
-          if (platforms.length === 0) {
-            void fetchPlatforms(DEFAULT_PARAMS)
-          }
-          if (roles.length === 0) {
-            void fetchRoles(DEFAULT_PARAMS)
-          }
         } else if (initEntity === 'role') {
           setSelectedRoleId(selectedEntity.id)
-          if (platforms.length === 0) {
-            void fetchPlatforms(DEFAULT_PARAMS)
-          }
-          if (profiles.length === 0) {
-            void fetchProfiles(DEFAULT_PARAMS)
-          }
         }
       }
     }
   }, [
-    action,
-    fetchPlatforms,
-    fetchProfiles,
-    fetchRoles,
     initEntity,
-    open,
+    isPprModalOpen,
     platforms.length,
+    pprModalAction,
     profiles.length,
     roles.length,
-    selectedEntity.id,
+    selectedEntity,
     selectedPpr,
   ])
 
@@ -118,45 +103,43 @@ export const PprModal: React.FC<PprModalProps> = ({
     setSelectedRoleId(getNumber(value))
   }
 
-  const handleSubmit = (e?: React.FormEvent) => {
-    if (e) e.preventDefault()
-    setLoading(true)
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsLoading(true)
 
-    const submitAsync = async () => {
-      try {
-        if (selectedPlatformId && selectedProfileId && selectedRoleId) {
-          if (action === ACTION_TYPE.ASSIGN) {
-            await pprService.assignPpr({
+    try {
+      if (selectedPlatformId && selectedProfileId && selectedRoleId) {
+        if (pprModalAction === ACTION_TYPE.ASSIGN) {
+          await pprService.assignPpr({
+            platformId: selectedPlatformId,
+            profileId: selectedProfileId,
+            roleId: selectedRoleId,
+          })
+          showAlert('success', 'Successfully assigned Platform Profile Role')
+        } else if (pprModalAction === ACTION_TYPE.UNASSIGN) {
+          await pprService.unassignPpr(
+            {
               platformId: selectedPlatformId,
               profileId: selectedProfileId,
               roleId: selectedRoleId,
-            })
-            showAlert('success', 'Successfully assigned Platform Profile Role')
-          } else if (action === ACTION_TYPE.UNASSIGN) {
-            await pprService.unassignPpr(
-              {
-                platformId: selectedPlatformId,
-                profileId: selectedProfileId,
-                roleId: selectedRoleId,
-              },
-              isHardDelete,
-            )
-            showAlert('success', `Successfully ${isHardDelete ? 'deleted' : 'unassigned'} Platform Role Permission`)
-          }
+            },
+            isHardDelete,
+          )
+          showAlert('success', `Successfully ${isHardDelete ? 'deleted' : 'unassigned'} Platform Role Permission`)
         }
-
-        onSuccess()
-        handleReset()
-        onClose()
-      } catch (err) {
-        const errorMessage = extractAxiosErrorMessage(err)
-        showAlert('error', errorMessage)
-      } finally {
-        setLoading(false)
       }
-    }
 
-    void submitAsync()
+      handleReset()
+      closePprModal()
+      invalidatePlatformQuery()
+      invalidateProfileQuery()
+      invalidateRoleQuery()
+    } catch (err) {
+      const errorMessage = extractAxiosErrorMessage(err)
+      showAlert('error', errorMessage)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const handleReset = () => {
@@ -175,11 +158,21 @@ export const PprModal: React.FC<PprModalProps> = ({
 
   const handleClose = () => {
     handleReset()
-    onClose()
+    closePprModal()
   }
 
+  const invalidatePlatformQuery = useInvalidatePlatforms(selectedPlatformId)
+  const invalidateProfileQuery = useInvalidateProfiles(selectedProfileId)
+  const invalidateRoleQuery = useInvalidateRoles(selectedRoleId)
+  const isItLoading = isLoading || isPlatformsLoading || isProfilesLoading || isRolesLoading
+
   return (
-    <Modal open={open} onClose={handleClose} aria-labelledby='ppr-modal-title' aria-describedby='ppr-modal-description'>
+    <Modal
+      open={isPprModalOpen}
+      onClose={handleClose}
+      aria-labelledby='ppr-modal-title'
+      aria-describedby='ppr-modal-description'
+    >
       <Box
         sx={{
           position: 'absolute',
@@ -194,7 +187,7 @@ export const PprModal: React.FC<PprModalProps> = ({
           borderRadius: 1,
         }}
       >
-        {action === ACTION_TYPE.ASSIGN && (
+        {pprModalAction === ACTION_TYPE.ASSIGN && (
           <>
             <Typography id='add-assignment-modal-title' variant='h6' component='h2' gutterBottom>
               Assign Platform Profile Role
@@ -307,15 +300,15 @@ export const PprModal: React.FC<PprModalProps> = ({
               </FormControl>
 
               <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 2 }}>
-                <Button onClick={handleClose} disabled={loading}>
+                <Button onClick={handleClose} disabled={isItLoading}>
                   Cancel
                 </Button>
                 <Button
                   variant='contained'
-                  onClick={handleSubmit}
+                  onClick={(e) => void handleSubmit(e)}
                   disabled={!selectedPlatformId || !selectedProfileId || !selectedRoleId}
                 >
-                  {loading ? (
+                  {isItLoading ? (
                     <>
                       <CircularProgress size={20} sx={{ mr: 1 }} />
                       Processing...
@@ -328,7 +321,7 @@ export const PprModal: React.FC<PprModalProps> = ({
             </Box>
           </>
         )}
-        {action === ACTION_TYPE.UNASSIGN && (
+        {pprModalAction === ACTION_TYPE.UNASSIGN && (
           <>
             <DialogTitle>Unassign Platform Profile Role</DialogTitle>
             <DialogContent>
@@ -341,7 +334,7 @@ export const PprModal: React.FC<PprModalProps> = ({
                     checked={isHardDelete}
                     onChange={(e) => setIsHardDelete(e.target.checked)}
                     color='error'
-                    disabled={loading}
+                    disabled={isItLoading}
                   />
                 }
                 label='Permanently delete (hard delete)'
@@ -350,16 +343,16 @@ export const PprModal: React.FC<PprModalProps> = ({
             </DialogContent>
 
             <DialogActions>
-              <Button onClick={handleClose} color='inherit' disabled={loading}>
+              <Button onClick={handleClose} color='inherit' disabled={isItLoading}>
                 Cancel
               </Button>
               <Button
-                onClick={() => handleSubmit()}
+                onClick={(e) => void handleSubmit(e)}
                 color={isHardDelete ? 'error' : 'warning'}
                 variant='contained'
-                disabled={loading}
+                disabled={isItLoading}
               >
-                {loading ? 'Processing' : isHardDelete ? 'Delete' : 'Unassign'}
+                {isItLoading ? 'Processing' : isHardDelete ? 'Delete' : 'Unassign'}
               </Button>
             </DialogActions>
           </>

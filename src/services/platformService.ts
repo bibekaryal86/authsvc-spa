@@ -22,12 +22,12 @@ export const platformService = {
     return await apiHelperCore.put<PlatformResponse>(`/v1/platforms/platform/${id}`, platform)
   },
 
-  deletePlatform: async (id: number, isHardDelete: boolean): Promise<void> => {
+  deletePlatform: async (id: number, isHardDelete: boolean): Promise<PlatformResponse> => {
     const url = isHardDelete ? `/v1/platforms/platform/${id}/hard` : `/v1/platforms/platform/${id}`
     return await apiHelperCore.delete(url)
   },
 
-  restorePlatform: async (id: number): Promise<void> => {
+  restorePlatform: async (id: number): Promise<PlatformResponse> => {
     return await apiHelperCore.patch(`/v1/platforms/platform/${id}/restore`, { deletedDate: null })
   },
 }

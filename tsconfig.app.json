@@ -25,6 +25,7 @@
       "@components": ["components/index.ts"],
       "@constants": ["constants/index.ts"],
       "@pages": ["pages/index.ts"],
+      "@queries": ["queries/index.ts"],
       "@routes": ["routes/index.ts"],
       "@services": ["services/index.ts"],
       "@stores": ["stores/index.ts"],

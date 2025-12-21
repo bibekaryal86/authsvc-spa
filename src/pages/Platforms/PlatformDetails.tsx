@@ -1,4 +1,4 @@
-import { HistoryTable, PprModal, PprTable, PrpModal, PrpTable } from '@components'
+import { HistoryTable, PprTable, PrpTable, Spinner } from '@components'
 import { ACTION_TYPE, DEFAULT_PARAMS, type PrpPprAction } from '@constants'
 import { Add, ArrowBack, History } from '@mui/icons-material'
 import {
@@ -7,7 +7,6 @@ import {
   Typography,
   Box,
   Button,
-  CircularProgress,
   Alert,
   Grid,
   Card,
@@ -15,45 +14,30 @@ import {
   Divider,
   Collapse,
 } from '@mui/material'
+import { useReadPlatformById } from '@queries'
 import { usePlatformStore, useAuthStore } from '@stores'
-import type { Platform, PlatformProfileRole, PlatformRolePermission } from '@types'
+import type { PlatformProfileRole, PlatformRolePermission } from '@types'
 import { getNumber } from '@utils'
-import React, { useEffect, useState } from 'react'
+import React, { useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 
 export const PlatformDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { isLoading, error, fetchPlatformById, clearError } = usePlatformStore()
   const { isSuperUser } = useAuthStore()
-  const [platform, setPlatform] = useState<Platform | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [showHistory, setShowHistory] = useState(false)
-  const [isPrpModalOpen, setIsPrpModalOpen] = useState(false)
-  const [selectedPrp, setSelectedPrp] = useState<PlatformRolePermission | null>(null)
-  const [isPprModalOpen, setIsPprModalOpen] = useState(false)
-  const [selectedPpr, setSelectedPpr] = useState<PlatformProfileRole | null>(null)
-  const [prpPprModalAction, setPrpPprModalAction] = useState<PrpPprAction | null>(null)
+  const { isShowHistory, setShowHistory, setSelectedPlatform, openPrpModal, openPprModal, setIncludeDeleted } =
+    usePlatformStore()
+
+  const platformId = getNumber(id)
+  const {
+    data: platform,
+    isLoading,
+    error,
+  } = useReadPlatformById(platformId, { ...DEFAULT_PARAMS, isForceFetch: true, isIncludeHistory: isShowHistory })
 
   useEffect(() => {
-    if (!id) return
-
-    let isMounted = true
-
-    const loadPlatform = async () => {
-      const foundPlatform = await fetchPlatformById(getNumber(id), { ...DEFAULT_PARAMS, isForceFetch: true })
-      if (isMounted) {
-        setPlatform(foundPlatform)
-        setLoading(false)
-      }
-    }
-
-    void loadPlatform()
-
-    return () => {
-      isMounted = false
-    }
-  }, [id, fetchPlatformById])
+    setSelectedPlatform(platform ?? null)
+  }, [platform, setSelectedPlatform])
 
   const handleBack = () => {
     void navigate(-1)
@@ -63,74 +47,26 @@ export const PlatformDetails: React.FC = () => {
     void navigate('/platforms')
   }
 
-  const handleDeletedLookup = async () => {
-    const foundPlatform = await fetchPlatformById(getNumber(id), {
-      ...DEFAULT_PARAMS,
-      isIncludeDeleted: true,
-      isForceFetch: true,
-    })
-    setPlatform(foundPlatform)
+  const handleViewHistory = async () => {
+    setShowHistory(!isShowHistory)
   }
 
-  const handleViewHistory = async () => {
-    setShowHistory(!showHistory)
-    if (platform && (!platform.history || platform.history.length === 0)) {
-      const foundPlatform = await fetchPlatformById(getNumber(id), {
-        ...DEFAULT_PARAMS,
-        isIncludeHistory: true,
-        isForceFetch: true,
-      })
-      setPlatform(foundPlatform)
-    }
+  const handleDeletedLookup = async () => {
+    setIncludeDeleted(true)
   }
 
   const handlePrpModalOpen = (action: PrpPprAction, selectedPrp: PlatformRolePermission | null) => {
-    setSelectedPrp(selectedPrp)
-    setPrpPprModalAction(action)
-    setIsPrpModalOpen(true)
-  }
-
-  const handlePrpModalClose = () => {
-    setPrpPprModalAction(null)
-    setSelectedPrp(null)
-    setIsPrpModalOpen(false)
-  }
-
-  const handlePrpModalSuccess = async () => {
-    const updatedPlatform = await fetchPlatformById(getNumber(id), {
-      ...DEFAULT_PARAMS,
-      isForceFetch: true,
-    })
-    setPlatform(updatedPlatform)
-    setPrpPprModalAction(null)
-    setSelectedPrp(null)
+    openPrpModal(action, selectedPrp)
   }
 
   const handlePprModalOpen = (action: PrpPprAction, selectedPpr: PlatformProfileRole | null) => {
-    setSelectedPpr(selectedPpr)
-    setPrpPprModalAction(action)
-    setIsPprModalOpen(true)
+    openPprModal(action, selectedPpr)
   }
 
-  const handlePprModalClose = () => {
-    setPrpPprModalAction(null)
-    setSelectedPpr(null)
-    setIsPprModalOpen(false)
-  }
-
-  const handlePprModalSuccess = async () => {
-    const updatedPlatform = await fetchPlatformById(getNumber(id), {
-      ...DEFAULT_PARAMS,
-      isForceFetch: true,
-    })
-    setPlatform(updatedPlatform)
-    setSelectedPpr(null)
-  }
-
-  if (loading || isLoading) {
+  if (isLoading) {
     return (
       <Container maxWidth='lg' sx={{ py: 4, display: 'flex', justifyContent: 'center' }}>
-        <CircularProgress />
+        <Spinner />
       </Container>
     )
   }
@@ -145,7 +81,6 @@ export const PlatformDetails: React.FC = () => {
               color='inherit'
               size='small'
               onClick={() => {
-                clearError()
                 handleBackToPlatforms()
               }}
             >
@@ -153,7 +88,7 @@ export const PlatformDetails: React.FC = () => {
             </Button>
           }
         >
-          {error}
+          {error.message}
         </Alert>
         {isSuperUser && (
           <Alert
@@ -381,7 +316,7 @@ export const PlatformDetails: React.FC = () => {
             </Button>
           </Box>
 
-          <Collapse in={showHistory}>
+          <Collapse in={isShowHistory}>
             <Box sx={{ mt: 4, pt: 3, borderTop: 1, borderColor: 'divider' }}>
               <Typography variant='h6' gutterBottom fontWeight='medium'>
                 Platform History
@@ -402,24 +337,6 @@ export const PlatformDetails: React.FC = () => {
           </Collapse>
         </Paper>
       </Container>
-      <PrpModal
-        open={isPrpModalOpen}
-        onClose={handlePrpModalClose}
-        onSuccess={() => void handlePrpModalSuccess()}
-        action={prpPprModalAction}
-        initEntity='platform'
-        selectedEntity={platform}
-        selectedPrp={selectedPrp}
-      />
-      <PprModal
-        open={isPprModalOpen}
-        onClose={handlePprModalClose}
-        onSuccess={() => void handlePprModalSuccess()}
-        action={prpPprModalAction}
-        initEntity='platform'
-        selectedEntity={platform}
-        selectedPpr={selectedPpr}
-      />
     </>
   )
 }

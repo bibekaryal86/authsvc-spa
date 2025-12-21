@@ -10,11 +10,11 @@ const Alerts = forwardRef<HTMLDivElement, AlertProps>(function Alert(props, ref)
 })
 
 export const Alert: React.FC = () => {
-  const { isOpen, messageType, messageText, hideAlert, resetAlert } = useAlertStore()
+  const { isOpen, messageType, messageText, hideAlert, resetAlertState } = useAlertStore()
 
   const close = () => {
     hideAlert()
-    setTimeout(() => resetAlert(), 300)
+    setTimeout(() => resetAlertState(), 300)
   }
 
   const autoHideDuration = messageText === INVALID_SESSION ? 1000000 : 10000

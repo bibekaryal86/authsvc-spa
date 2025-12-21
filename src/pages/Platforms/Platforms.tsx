@@ -2,7 +2,6 @@ import { EntityTable } from '@components'
 import { ACTION_TYPE, DEFAULT_PARAMS, type ModalAction } from '@constants'
 import { Add, FilterList } from '@mui/icons-material'
 import {
-  Alert,
   Box,
   Button,
   Checkbox,
@@ -18,27 +17,30 @@ import {
   Select,
   Typography,
 } from '@mui/material'
+import { useReadPlatforms } from '@queries'
 import { useAuthStore, usePlatformStore } from '@stores'
 import type { Platform } from '@types'
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useMemo } from 'react'
 
 import { PlatformsModal } from './PlatformsModal.tsx'
 
 export const Platforms: React.FC = () => {
-  const { platforms, isLoading, error, fetchPlatforms, clearError } = usePlatformStore()
   const { isSuperUser } = useAuthStore()
-
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [modalAction, setModalAction] = useState<ModalAction | null>(null)
-  const [selectedStatus, setSelectedStatus] = useState<string>('all')
-  const [selectedPlatform, setSelectedPlatform] = useState<Platform | null>(null)
-  const [includeDeleted, setIncludeDeleted] = useState(false)
+  const {
+    selectedStatus,
+    isIncludeDeleted,
+    setSelectedStatus,
+    setIncludeDeleted,
+    isPlatformModalOpen,
+    openPlatformModal,
+  } = usePlatformStore()
 
   const hasActiveFilters = selectedStatus != 'all'
 
-  useEffect(() => {
-    void fetchPlatforms(DEFAULT_PARAMS)
-  }, [fetchPlatforms])
+  const params = { ...DEFAULT_PARAMS, isIncludeDeleted }
+  const { data, isLoading, error } = useReadPlatforms(params)
+
+  const platforms = useMemo(() => data?.platforms ?? [], [data?.platforms])
 
   const filteredPlatforms = useMemo(() => {
     return platforms.filter((platform) => {
@@ -52,28 +54,8 @@ export const Platforms: React.FC = () => {
     })
   }, [platforms, selectedStatus])
 
-  const handleRefresh = () => {
-    clearError()
-    handleClearFilters()
-    void fetchPlatforms({
-      ...DEFAULT_PARAMS,
-      isIncludeDeleted: includeDeleted,
-    })
-  }
-
   const handleModalOpen = (platform: Platform | null, action: ModalAction) => {
-    setModalAction(action)
-    setSelectedPlatform(platform)
-    setIsModalOpen(true)
-  }
-
-  const handleModalClose = () => {
-    setSelectedPlatform(null)
-    setIsModalOpen(false)
-  }
-
-  const handleModalSuccess = () => {
-    void fetchPlatforms(DEFAULT_PARAMS)
+    openPlatformModal(action, platform)
   }
 
   const handleClearFilters = () => {
@@ -141,20 +123,6 @@ export const Platforms: React.FC = () => {
           </Typography>
         </Paper>
 
-        {error && (
-          <Alert
-            severity='error'
-            sx={{ mb: 3 }}
-            action={
-              <Button color='inherit' size='small' onClick={handleRefresh}>
-                Retry
-              </Button>
-            }
-          >
-            {error}
-          </Alert>
-        )}
-
         {isLoading && platforms.length === 0 && (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
             <CircularProgress />
@@ -179,7 +147,7 @@ export const Platforms: React.FC = () => {
               <FormControlLabel
                 control={
                   <Checkbox
-                    checked={includeDeleted}
+                    checked={isIncludeDeleted}
                     onChange={(e) => setIncludeDeleted(e.target.checked)}
                     size='small'
                     disabled={isLoading}
@@ -189,27 +157,10 @@ export const Platforms: React.FC = () => {
                 sx={{ mr: 2 }}
               />
             )}
-            <Button
-              variant='outlined'
-              onClick={handleRefresh}
-              disabled={isLoading}
-              startIcon={isLoading ? <CircularProgress size={16} /> : undefined}
-            >
-              {isLoading ? 'Refreshing...' : 'Refresh'}
-            </Button>
           </Box>
         )}
 
-        {modalAction && (
-          <PlatformsModal
-            action={modalAction}
-            open={isModalOpen}
-            onClose={handleModalClose}
-            onSuccess={handleModalSuccess}
-            platform={selectedPlatform}
-            isSuperUser={isSuperUser}
-          />
-        )}
+        {isPlatformModalOpen && <PlatformsModal />}
       </Paper>
     </Container>
   )

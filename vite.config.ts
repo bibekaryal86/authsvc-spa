@@ -10,6 +10,7 @@ export default defineConfig({
       '@components': path.resolve(__dirname, 'src/components/index.ts'),
       '@constants': path.resolve(__dirname, 'src/constants/index.ts'),
       '@pages': path.resolve(__dirname, 'src/pages/index.ts'),
+      '@queries': path.resolve(__dirname, 'src/queries/index.ts'),
       '@routes': path.resolve(__dirname, 'src/routes/index.ts'),
       '@services': path.resolve(__dirname, 'src/services/index.ts'),
       '@stores': path.resolve(__dirname, 'src/stores/index.ts'),

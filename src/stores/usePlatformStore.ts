@@ -1,99 +1,113 @@
-import { DEFAULT_PARAMS } from '@constants'
-import { platformService } from '@services'
-import type { Platform, RequestMetadata } from '@types'
-import { extractAxiosErrorMessage } from '@utils'
+import { type ModalAction, type PrpPprAction } from '@constants'
+import type { Platform, PlatformProfileRole, PlatformRolePermission } from '@types'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 
 interface PlatformState {
-  platforms: Platform[]
-  isLoading: boolean
-  error: string | null
+  isPlatformModalOpen: boolean
+  platformModalAction: ModalAction | null
+  selectedStatus: string
+  isIncludeDeleted: boolean
+  selectedPlatform: Platform | null
+  isShowHistory: boolean
+  isPrpModalOpen: boolean
+  isPprModalOpen: boolean
+  selectedPrp: PlatformRolePermission | null
+  selectedPpr: PlatformProfileRole | null
+  prpModalAction: PrpPprAction | null
+  pprModalAction: PrpPprAction | null
 
-  setPlatforms: (platforms: Platform[]) => void
-  setLoading: (loading: boolean) => void
-  setError: (error: string | null) => void
-  clearError: () => void
-  fetchPlatforms: (params: RequestMetadata) => Promise<void>
-  fetchPlatformById: (id: number, params: RequestMetadata) => Promise<Platform | null>
-  resetPlatforms: () => void
+  setSelectedStatus: (v: string) => void
+  setIncludeDeleted: (v: boolean) => void
+  setSelectedPlatform: (p: Platform | null) => void
+  openPlatformModal: (action: ModalAction, platform?: Platform | null) => void
+  closePlatformModal: () => void
+  openPrpModal: (action: PrpPprAction, prp?: PlatformRolePermission | null) => void
+  closePrpModal: () => void
+  openPprModal: (action: PrpPprAction, ppr?: PlatformProfileRole | null) => void
+  closePprModal: () => void
+  setShowHistory: (v: boolean) => void
+
+  resetPlatformState: () => void
 }
 
 export const usePlatformStore = create<PlatformState>()(
   devtools(
-    (set, get) => ({
-      platforms: [],
-      isLoading: false,
-      error: null,
+    (set) => ({
+      isPlatformModalOpen: false,
+      platformModalAction: null,
+      selectedStatus: 'all',
+      isIncludeDeleted: false,
+      selectedPlatform: null,
+      isShowHistory: false,
+      isPrpModalOpen: false,
+      isPprModalOpen: false,
+      selectedPrp: null,
+      selectedPpr: null,
+      prpModalAction: null,
+      pprModalAction: null,
 
-      setPlatforms: (platforms: Platform[]) => set({ platforms }, false, 'platform/setPlatforms'),
+      setSelectedStatus: (v) => set({ selectedStatus: v }, false, 'platform/setSelectedStatus'),
 
-      setLoading: (loading: boolean) => set({ isLoading: loading }, false, 'platform/setLoading'),
+      setIncludeDeleted: (v) => set({ isIncludeDeleted: v }, false, 'platform/setIncludeDeleted'),
 
-      setError: (error: string | null) => set({ error }, false, 'platform/setError'),
+      setSelectedPlatform: (p) => set({ selectedPlatform: p }, false, 'platform/setSelectedPlatform'),
 
-      clearError: () => set({ error: null }, false, 'platform/clearError'),
+      openPlatformModal: (action, platform = null) =>
+        set(
+          {
+            isPlatformModalOpen: true,
+            platformModalAction: action,
+            selectedPlatform: platform,
+          },
+          false,
+          'platform/openPlatformModal',
+        ),
 
-      fetchPlatforms: async (params = DEFAULT_PARAMS): Promise<void> => {
-        const { setLoading, setPlatforms, setError } = get()
+      closePlatformModal: () =>
+        set(
+          {
+            isPlatformModalOpen: false,
+            platformModalAction: null,
+            selectedPlatform: null,
+          },
+          false,
+          'platform/closePlatformModal',
+        ),
 
-        try {
-          setLoading(true)
-          setError(null)
+      openPrpModal: (action, prp = null) =>
+        set({ isPrpModalOpen: true, prpModalAction: action, selectedPrp: prp }, false, 'platform/openPrpModal'),
 
-          const response = await platformService.readPlatforms(params)
-          setPlatforms(response.platforms)
-        } catch (error) {
-          const errorMessage = extractAxiosErrorMessage(error)
-          setError(errorMessage)
-          console.error('Error fetching platforms:', error)
-        } finally {
-          setLoading(false)
-        }
-      },
+      closePrpModal: () =>
+        set({ isPrpModalOpen: false, prpModalAction: null, selectedPrp: null }, false, 'platform/closePrpModal'),
 
-      fetchPlatformById: async (id: number, params = DEFAULT_PARAMS): Promise<Platform | null> => {
-        const { setLoading, setError, platforms } = get()
-        const { isForceFetch } = params
+      openPprModal: (action, ppr = null) =>
+        set({ isPprModalOpen: true, pprModalAction: action, selectedPpr: ppr }, false, 'platform/openPprModal'),
 
-        try {
-          if (!isForceFetch) {
-            const existingPlatform = platforms.find((p) => p.id === id)
-            if (existingPlatform) {
-              console.log('Platform found in store, skipping API call')
-              return existingPlatform
-            }
-          }
+      closePprModal: () =>
+        set({ isPprModalOpen: false, pprModalAction: null, selectedPpr: null }, false, 'platform/closePprModal'),
 
-          setLoading(true)
-          setError(null)
+      setShowHistory: (v) => set({ isShowHistory: v }, false, 'platform/setShowHistory'),
 
-          const response = await platformService.readPlatform(id, params)
-
-          if (response.platforms.length > 0) {
-            const platform = response.platforms[0]
-            const currentPlatforms = get().platforms
-
-            const updatedPlatforms = currentPlatforms.some((p) => p.id === platform.id)
-              ? currentPlatforms.map((p) => (p.id === platform.id ? platform : p))
-              : [...currentPlatforms, platform]
-
-            set({ platforms: updatedPlatforms }, false, 'platform/updatePlatforms')
-            return platform
-          }
-
-          return null
-        } catch (error) {
-          const errorMessage = extractAxiosErrorMessage(error)
-          setError(errorMessage)
-          console.error('Error fetching platform by ID:', error)
-          return null
-        } finally {
-          setLoading(false)
-        }
-      },
-
-      resetPlatforms: () => set({ platforms: [], isLoading: false, error: null }, false, 'platform/resetPlatforms'),
+      resetPlatformState: () =>
+        set(
+          {
+            isPlatformModalOpen: false,
+            platformModalAction: null,
+            selectedStatus: 'all',
+            isIncludeDeleted: false,
+            selectedPlatform: null,
+            isShowHistory: false,
+            isPrpModalOpen: false,
+            isPprModalOpen: false,
+            selectedPrp: null,
+            selectedPpr: null,
+            prpModalAction: null,
+            pprModalAction: null,
+          },
+          false,
+          'platform/resetPlatformState',
+        ),
     }),
     {
       name: 'PlatformStore',

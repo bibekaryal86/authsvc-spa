@@ -22,12 +22,12 @@ export const roleService = {
     return await apiHelperCore.put<RoleResponse>(`/v1/roles/role/${id}`, role)
   },
 
-  deleteRole: async (id: number, isHardDelete: boolean): Promise<void> => {
+  deleteRole: async (id: number, isHardDelete: boolean): Promise<RoleResponse> => {
     const url = isHardDelete ? `/v1/roles/role/${id}/hard` : `/v1/roles/role/${id}`
     return await apiHelperCore.delete(url)
   },
 
-  restoreRole: async (id: number): Promise<void> => {
+  restoreRole: async (id: number): Promise<RoleResponse> => {
     return await apiHelperCore.patch(`/v1/roles/role/${id}/restore`, { deletedDate: null })
   },
 }

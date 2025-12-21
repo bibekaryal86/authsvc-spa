@@ -1,4 +1,4 @@
-import { HistoryTable, PprModal, PprTable, PrpModal, PrpTable } from '@components'
+import { HistoryTable, PprTable, PrpTable, Spinner } from '@components'
 import { ACTION_TYPE, DEFAULT_PARAMS, type PrpPprAction } from '@constants'
 import { Add, ArrowBack, History } from '@mui/icons-material'
 import {
@@ -7,7 +7,6 @@ import {
   Typography,
   Box,
   Button,
-  CircularProgress,
   Alert,
   Grid,
   Card,
@@ -15,45 +14,31 @@ import {
   Divider,
   Collapse,
 } from '@mui/material'
+import { useReadRoleById } from '@queries'
 import { useRoleStore, useAuthStore } from '@stores'
-import type { PlatformProfileRole, PlatformRolePermission, Role } from '@types'
+import type { PlatformProfileRole, PlatformRolePermission } from '@types'
 import { getNumber } from '@utils'
-import React, { useEffect, useState } from 'react'
+import React, { useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 
 export const RoleDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { isLoading, error, fetchRoleById, clearError } = useRoleStore()
   const { isSuperUser } = useAuthStore()
-  const [role, setRole] = useState<Role | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [showHistory, setShowHistory] = useState(false)
-  const [isPrpModalOpen, setIsPrpModalOpen] = useState(false)
-  const [selectedPrp, setSelectedPrp] = useState<PlatformRolePermission | null>(null)
-  const [isPprModalOpen, setIsPprModalOpen] = useState(false)
-  const [selectedPpr, setSelectedPpr] = useState<PlatformProfileRole | null>(null)
-  const [prpPprModalAction, setPrpPprModalAction] = useState<PrpPprAction | null>(null)
+
+  const { isShowHistory, setShowHistory, setSelectedRole, openPrpModal, openPprModal, setIncludeDeleted } =
+    useRoleStore()
+
+  const roleId = getNumber(id)
+  const {
+    data: role,
+    isLoading,
+    error,
+  } = useReadRoleById(roleId, { ...DEFAULT_PARAMS, isForceFetch: true, isIncludeHistory: isShowHistory })
 
   useEffect(() => {
-    if (!id) return
-
-    let isMounted = true
-
-    const loadRole = async () => {
-      const foundRole = await fetchRoleById(getNumber(id), { ...DEFAULT_PARAMS, isForceFetch: true })
-      if (isMounted) {
-        setRole(foundRole)
-        setLoading(false)
-      }
-    }
-
-    void loadRole()
-
-    return () => {
-      isMounted = false
-    }
-  }, [id, fetchRoleById])
+    setSelectedRole(role ?? null)
+  }, [role, setSelectedRole])
 
   const handleBack = () => {
     void navigate(-1)
@@ -63,75 +48,26 @@ export const RoleDetails: React.FC = () => {
     void navigate('/roles')
   }
 
-  const handleDeletedLookup = async () => {
-    const foundRole = await fetchRoleById(getNumber(id), {
-      ...DEFAULT_PARAMS,
-      isIncludeDeleted: true,
-      isForceFetch: true,
-    })
-    setRole(foundRole)
+  const handleViewHistory = async () => {
+    setShowHistory(!isShowHistory)
   }
 
-  const handleViewHistory = async () => {
-    setShowHistory(!showHistory)
-    if (role && (!role.history || role.history.length === 0)) {
-      const foundRole = await fetchRoleById(getNumber(id), {
-        ...DEFAULT_PARAMS,
-        isIncludeHistory: true,
-        isForceFetch: true,
-      })
-      setRole(foundRole)
-    }
+  const handleDeletedLookup = async () => {
+    setIncludeDeleted(true)
   }
 
   const handlePrpModalOpen = (action: PrpPprAction, selectedPrp: PlatformRolePermission | null) => {
-    setSelectedPrp(selectedPrp)
-    setPrpPprModalAction(action)
-    setIsPrpModalOpen(true)
-  }
-
-  const handlePrpModalClose = () => {
-    setPrpPprModalAction(null)
-    setSelectedPrp(null)
-    setIsPrpModalOpen(false)
-  }
-
-  const handlePrpModalSuccess = async () => {
-    const updatedRole = await fetchRoleById(getNumber(id), {
-      ...DEFAULT_PARAMS,
-      isForceFetch: true,
-    })
-    setRole(updatedRole)
-    setPrpPprModalAction(null)
-    setSelectedPpr(null)
+    openPrpModal(action, selectedPrp)
   }
 
   const handlePprModalOpen = (action: PrpPprAction, selectedPpr: PlatformProfileRole | null) => {
-    setSelectedPpr(selectedPpr)
-    setPrpPprModalAction(action)
-    setIsPprModalOpen(true)
+    openPprModal(action, selectedPpr)
   }
 
-  const handlePprModalClose = () => {
-    setPrpPprModalAction(null)
-    setSelectedPpr(null)
-    setIsPprModalOpen(false)
-  }
-
-  const handlePprModalSuccess = async () => {
-    const updatedRole = await fetchRoleById(getNumber(id), {
-      ...DEFAULT_PARAMS,
-      isForceFetch: true,
-    })
-    setRole(updatedRole)
-    setPrpPprModalAction(null)
-    setSelectedPpr(null)
-  }
-
-  if (loading || isLoading) {
+  if (isLoading) {
     return (
       <Container maxWidth='lg' sx={{ py: 4, display: 'flex', justifyContent: 'center' }}>
-        <CircularProgress />
+        <Spinner />
       </Container>
     )
   }
@@ -146,7 +82,6 @@ export const RoleDetails: React.FC = () => {
               color='inherit'
               size='small'
               onClick={() => {
-                clearError()
                 handleBackToRoles()
               }}
             >
@@ -154,7 +89,7 @@ export const RoleDetails: React.FC = () => {
             </Button>
           }
         >
-          {error}
+          {error.message}
         </Alert>
         {isSuperUser && (
           <Alert
@@ -382,7 +317,7 @@ export const RoleDetails: React.FC = () => {
             </Button>
           </Box>
 
-          <Collapse in={showHistory}>
+          <Collapse in={isShowHistory}>
             <Box sx={{ mt: 4, pt: 3, borderTop: 1, borderColor: 'divider' }}>
               <Typography variant='h6' gutterBottom fontWeight='medium'>
                 Role History
@@ -403,24 +338,6 @@ export const RoleDetails: React.FC = () => {
           </Collapse>
         </Paper>
       </Container>
-      <PrpModal
-        open={isPrpModalOpen}
-        onClose={handlePrpModalClose}
-        onSuccess={() => void handlePrpModalSuccess()}
-        action={prpPprModalAction}
-        initEntity='role'
-        selectedEntity={role}
-        selectedPrp={selectedPrp}
-      />
-      <PprModal
-        open={isPprModalOpen}
-        onClose={handlePprModalClose}
-        onSuccess={() => void handlePprModalSuccess()}
-        action={prpPprModalAction}
-        initEntity='role'
-        selectedEntity={role}
-        selectedPpr={selectedPpr}
-      />
     </>
   )
 }
