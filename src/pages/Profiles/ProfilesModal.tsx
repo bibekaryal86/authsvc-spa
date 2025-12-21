@@ -262,8 +262,8 @@ export const ProfilesModal: React.FC = () => {
     }))
   }
 
-  const handleSubmit = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault()
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
 
     try {
       if (profile) {

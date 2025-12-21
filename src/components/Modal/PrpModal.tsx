@@ -1,4 +1,4 @@
-import { ACTION_TYPE, DEFAULT_PARAMS, type PrpPprAction } from '@constants'
+import { ACTION_TYPE, DEFAULT_PARAMS } from '@constants'
 import {
   Modal,
   Box,
@@ -18,86 +18,63 @@ import {
   Checkbox,
   DialogActions,
 } from '@mui/material'
+import { useReadPermissions, useReadPlatforms, useReadRoles } from '@queries'
 import { prpService } from '@services'
 import { useAlertStore, usePermissionStore, usePlatformStore, useRoleStore } from '@stores'
-import type { Permission, Platform, PlatformRolePermission, Role } from '@types'
+import type { Permission, Platform, Role } from '@types'
 import { extractAxiosErrorMessage, getNumber, getString } from '@utils'
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 
 interface PrpModalProps {
-  open: boolean
-  onClose: () => void
-  onSuccess: () => void
-  action: PrpPprAction | null
   initEntity: 'platform' | 'role' | 'permission'
   selectedEntity: Platform | Role | Permission
-  selectedPrp: PlatformRolePermission | null
 }
 
-export const PrpModal: React.FC<PrpModalProps> = ({
-  open,
-  onClose,
-  onSuccess,
-  action,
-  initEntity,
-  selectedEntity,
-  selectedPrp,
-}) => {
-  const [loading, setLoading] = useState(false)
+export const PrpModal: React.FC<PrpModalProps> = ({ initEntity, selectedEntity }) => {
+  const { showAlert } = useAlertStore()
+  const platformStore = usePlatformStore()
+  const roleStore = useRoleStore()
+  const permissionStore = usePermissionStore()
 
+  const { isPrpModalOpen, selectedPrp, prpModalAction } =
+    initEntity === 'platform' ? platformStore : initEntity === 'role' ? roleStore : permissionStore
+
+  const [isLoading, setIsLoading] = useState(false)
   const [selectedPlatformId, setSelectedPlatformId] = useState<number | null>(null)
   const [selectedRoleId, setSelectedRoleId] = useState<number | null>(null)
   const [selectedPermissionId, setSelectedPermissionId] = useState<number | null>(null)
   const [isHardDelete, setIsHardDelete] = useState(false)
 
-  const { showAlert } = useAlertStore()
-  const { platforms, fetchPlatforms, isLoading: isPlatformsLoading } = usePlatformStore()
-  const { roles, fetchRoles, isLoading: isRolesLoading } = useRoleStore()
-  const { permissions, fetchPermissions, isLoading: isPermissionsLoading } = usePermissionStore()
+  const { data: dataPlatforms, isLoading: isPlatformsLoading } = useReadPlatforms(DEFAULT_PARAMS)
+  const { data: dataRoles, isLoading: isRolesLoading } = useReadRoles(DEFAULT_PARAMS)
+  const { data: dataPermissions, isLoading: isPermissionsLoading } = useReadPermissions(DEFAULT_PARAMS)
+
+  const platforms = useMemo(() => dataPlatforms?.platforms ?? [], [dataPlatforms?.platforms])
+  const roles = useMemo(() => dataRoles?.roles ?? [], [dataRoles?.roles])
+  const permissions = useMemo(() => dataPermissions?.permissions ?? [], [dataPermissions?.permissions])
 
   useEffect(() => {
-    if (open) {
-      if (action === ACTION_TYPE.UNASSIGN && selectedPrp) {
+    if (isPrpModalOpen) {
+      if (prpModalAction === ACTION_TYPE.UNASSIGN && selectedPrp) {
         setSelectedPlatformId(initEntity === 'platform' ? selectedEntity.id : selectedPrp.platform.id)
         setSelectedRoleId(initEntity === 'role' ? selectedEntity.id : selectedPrp.role.id)
         setSelectedPermissionId(initEntity === 'permission' ? selectedEntity.id : selectedPrp.permission.id)
-      } else if (action === ACTION_TYPE.ASSIGN) {
+      } else if (prpModalAction === ACTION_TYPE.ASSIGN) {
         if (initEntity === 'platform') {
           setSelectedPlatformId(selectedEntity.id)
-          if (roles.length === 0) {
-            void fetchRoles(DEFAULT_PARAMS)
-          }
-          if (permissions.length === 0) {
-            void fetchPermissions(DEFAULT_PARAMS)
-          }
         } else if (initEntity === 'role') {
           setSelectedRoleId(selectedEntity.id)
-          if (platforms.length === 0) {
-            void fetchPlatforms(DEFAULT_PARAMS)
-          }
-          if (permissions.length === 0) {
-            void fetchPermissions(DEFAULT_PARAMS)
-          }
         } else if (initEntity === 'permission') {
           setSelectedPermissionId(selectedEntity.id)
-          if (platforms.length === 0) {
-            void fetchPlatforms(DEFAULT_PARAMS)
-          }
-          if (roles.length === 0) {
-            void fetchRoles(DEFAULT_PARAMS)
-          }
         }
       }
     }
   }, [
-    action,
-    fetchPermissions,
-    fetchPlatforms,
-    fetchRoles,
     initEntity,
-    open,
+    isPrpModalOpen,
     permissions.length,
     platforms.length,
+    prpModalAction,
     roles.length,
     selectedEntity.id,
     selectedPrp,
@@ -118,48 +95,39 @@ export const PrpModal: React.FC<PrpModalProps> = ({
     setSelectedPermissionId(getNumber(value))
   }
 
-  const handleSubmit = (e?: React.FormEvent) => {
-    console.log(
-      `Action: ${action} PlatformId: ${selectedPlatformId} RoleId: ${selectedRoleId} PermissionId: ${selectedPermissionId}`,
-    )
-    if (e) e.preventDefault()
-    setLoading(true)
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsLoading(true)
 
-    const submitAsync = async () => {
-      try {
-        if (selectedPlatformId && selectedRoleId && selectedPermissionId) {
-          if (action === ACTION_TYPE.ASSIGN) {
-            await prpService.assignPrp({
+    try {
+      if (selectedPlatformId && selectedRoleId && selectedPermissionId) {
+        if (prpModalAction === ACTION_TYPE.ASSIGN) {
+          await prpService.assignPrp({
+            platformId: selectedPlatformId,
+            roleId: selectedRoleId,
+            permissionId: selectedPermissionId,
+          })
+          showAlert('success', 'Successfully submitted to assign Platform Role Permission')
+        } else if (prpModalAction === ACTION_TYPE.UNASSIGN) {
+          await prpService.unassignPrp(
+            {
               platformId: selectedPlatformId,
               roleId: selectedRoleId,
               permissionId: selectedPermissionId,
-            })
-            showAlert('success', 'Successfully submitted to assign Platform Role Permission')
-          } else if (action === ACTION_TYPE.UNASSIGN) {
-            await prpService.unassignPrp(
-              {
-                platformId: selectedPlatformId,
-                roleId: selectedRoleId,
-                permissionId: selectedPermissionId,
-              },
-              isHardDelete,
-            )
-            showAlert('success', 'Successfully submitted to unassign Platform Role Permission')
-          }
+            },
+            isHardDelete,
+          )
+          showAlert('success', 'Successfully submitted to unassign Platform Role Permission')
         }
-
-        onSuccess()
-        handleReset()
-        onClose()
-      } catch (err) {
-        const errorMessage = extractAxiosErrorMessage(err)
-        showAlert('error', errorMessage)
-      } finally {
-        setLoading(false)
       }
-    }
 
-    void submitAsync()
+      handleReset()
+    } catch (err) {
+      const errorMessage = extractAxiosErrorMessage(err)
+      showAlert('error', errorMessage)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const handleReset = () => {
@@ -178,11 +146,17 @@ export const PrpModal: React.FC<PrpModalProps> = ({
 
   const handleClose = () => {
     handleReset()
-    onClose()
   }
 
+  const isItLoading = isLoading || isPlatformsLoading || isRolesLoading || isPermissionsLoading
+
   return (
-    <Modal open={open} onClose={handleClose} aria-labelledby='prp-modal-title' aria-describedby='prp-modal-description'>
+    <Modal
+      open={isPrpModalOpen}
+      onClose={handleClose}
+      aria-labelledby='prp-modal-title'
+      aria-describedby='prp-modal-description'
+    >
       <Box
         sx={{
           position: 'absolute',
@@ -197,7 +171,7 @@ export const PrpModal: React.FC<PrpModalProps> = ({
           borderRadius: 1,
         }}
       >
-        {action === ACTION_TYPE.ASSIGN && (
+        {prpModalAction === ACTION_TYPE.ASSIGN && (
           <>
             <Typography id='prp-modal-title' variant='h6' component='h2' gutterBottom>
               Assign Platform Role Permission
@@ -309,15 +283,15 @@ export const PrpModal: React.FC<PrpModalProps> = ({
               </FormControl>
 
               <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 2 }}>
-                <Button onClick={handleClose} disabled={loading}>
+                <Button onClick={handleClose} disabled={isItLoading}>
                   Cancel
                 </Button>
                 <Button
                   variant='contained'
-                  onClick={handleSubmit}
+                  onClick={(e) => void handleSubmit(e)}
                   disabled={!selectedPlatformId || !selectedRoleId || !selectedPermissionId}
                 >
-                  {loading ? (
+                  {isItLoading ? (
                     <>
                       <CircularProgress size={20} sx={{ mr: 1 }} />
                       Processing...
@@ -330,7 +304,7 @@ export const PrpModal: React.FC<PrpModalProps> = ({
             </Box>
           </>
         )}
-        {action === ACTION_TYPE.UNASSIGN && (
+        {prpModalAction === ACTION_TYPE.UNASSIGN && (
           <>
             <DialogTitle>Unassign Platform Role Permission</DialogTitle>
             <DialogContent>
@@ -343,7 +317,7 @@ export const PrpModal: React.FC<PrpModalProps> = ({
                     checked={isHardDelete}
                     onChange={(e) => setIsHardDelete(e.target.checked)}
                     color='error'
-                    disabled={loading}
+                    disabled={isItLoading}
                   />
                 }
                 label='Permanently delete (hard delete)'
@@ -352,16 +326,16 @@ export const PrpModal: React.FC<PrpModalProps> = ({
             </DialogContent>
 
             <DialogActions>
-              <Button onClick={handleClose} color='inherit' disabled={loading}>
+              <Button onClick={handleClose} color='inherit' disabled={isItLoading}>
                 Cancel
               </Button>
               <Button
-                onClick={() => handleSubmit()}
+                onClick={(e) => void handleSubmit(e)}
                 color={isHardDelete ? 'error' : 'warning'}
                 variant='contained'
-                disabled={loading}
+                disabled={isItLoading}
               >
-                {loading ? 'Processing' : isHardDelete ? 'Delete' : 'Unassign'}
+                {isItLoading ? 'Processing' : isHardDelete ? 'Delete' : 'Unassign'}
               </Button>
             </DialogActions>
           </>

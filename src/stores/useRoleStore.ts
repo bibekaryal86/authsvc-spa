@@ -14,7 +14,8 @@ interface RoleState {
   isPprModalOpen: boolean
   selectedPrp: PlatformRolePermission | null
   selectedPpr: PlatformProfileRole | null
-  prpPprModalAction: PrpPprAction | null
+  prpModalAction: PrpPprAction | null
+  pprModalAction: PrpPprAction | null
 
   setSelectedStatus: (v: string) => void
   setIncludeDeleted: (v: boolean) => void
@@ -43,7 +44,8 @@ export const useRoleStore = create<RoleState>()(
       isPprModalOpen: false,
       selectedPrp: null,
       selectedPpr: null,
-      prpPprModalAction: null,
+      prpModalAction: null,
+      pprModalAction: null,
 
       setSelectedStatus: (v) => set({ selectedStatus: v }),
       setIncludeDeleted: (v) => set({ isIncludeDeleted: v }),
@@ -51,10 +53,10 @@ export const useRoleStore = create<RoleState>()(
       openRoleModal: (action, role = null) =>
         set({ isRoleModalOpen: true, roleModalAction: action, selectedRole: role }),
       closeRoleModal: () => set({ isRoleModalOpen: false, roleModalAction: null, selectedRole: null }),
-      openPrpModal: (action, prp = null) => set({ isPrpModalOpen: true, prpPprModalAction: action, selectedPrp: prp }),
-      closePrpModal: () => set({ isPrpModalOpen: false, prpPprModalAction: null, selectedPrp: null }),
-      openPprModal: (action, ppr = null) => set({ isPprModalOpen: true, prpPprModalAction: action, selectedPpr: ppr }),
-      closePprModal: () => set({ isPprModalOpen: false, prpPprModalAction: null, selectedPpr: null }),
+      openPrpModal: (action, prp = null) => set({ isPrpModalOpen: true, prpModalAction: action, selectedPrp: prp }),
+      closePrpModal: () => set({ isPrpModalOpen: false, prpModalAction: null, selectedPrp: null }),
+      openPprModal: (action, ppr = null) => set({ isPprModalOpen: true, pprModalAction: action, selectedPpr: ppr }),
+      closePprModal: () => set({ isPprModalOpen: false, pprModalAction: null, selectedPpr: null }),
 
       setShowHistory: (v) => set({ isShowHistory: v }),
 
@@ -71,7 +73,8 @@ export const useRoleStore = create<RoleState>()(
             isPprModalOpen: false,
             selectedPrp: null,
             selectedPpr: null,
-            prpPprModalAction: null,
+            prpModalAction: null,
+            pprModalAction: null,
           },
           false,
           'role/resetRoles',

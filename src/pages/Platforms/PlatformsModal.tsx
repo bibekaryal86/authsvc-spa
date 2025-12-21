@@ -111,8 +111,8 @@ export const PlatformsModal: React.FC = () => {
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
-  const handleSubmit = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault()
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
 
     try {
       if (action === ACTION_TYPE.CREATE) {
