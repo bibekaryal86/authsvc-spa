@@ -93,9 +93,13 @@ export const useRestoreProfile = () => {
   })
 }
 
-export const useInvalidateProfiles = () => {
+export const useInvalidateProfiles = (id?: number | null) => {
   const queryClient = useQueryClient()
   return () => {
-    void queryClient.invalidateQueries({ queryKey: ['profiles'] })
+    if (id) {
+      void queryClient.invalidateQueries({ queryKey: ['profile', id] })
+    } else {
+      void queryClient.invalidateQueries({ queryKey: ['profiles'] })
+    }
   }
 }

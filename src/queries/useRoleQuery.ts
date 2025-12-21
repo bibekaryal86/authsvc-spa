@@ -67,9 +67,13 @@ export const useRestoreRole = () => {
   })
 }
 
-export const useInvalidateRoles = () => {
+export const useInvalidateRoles = (id?: number | null) => {
   const queryClient = useQueryClient()
   return () => {
-    void queryClient.invalidateQueries({ queryKey: ['roles'] })
+    if (id) {
+      void queryClient.invalidateQueries({ queryKey: ['role', id] })
+    } else {
+      void queryClient.invalidateQueries({ queryKey: ['roles'] })
+    }
   }
 }

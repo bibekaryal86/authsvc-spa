@@ -18,7 +18,14 @@ import {
   Checkbox,
   DialogActions,
 } from '@mui/material'
-import { useReadPlatforms, useReadProfiles, useReadRoles } from '@queries'
+import {
+  useInvalidateProfiles,
+  useInvalidatePlatforms,
+  useInvalidateRoles,
+  useReadPlatforms,
+  useReadProfiles,
+  useReadRoles,
+} from '@queries'
 import { pprService } from '@services'
 import { useAlertStore, usePlatformStore, useProfileStore, useRoleStore } from '@stores'
 import type { Platform, Profile, Role } from '@types'
@@ -27,7 +34,7 @@ import React, { useState, useEffect, useMemo } from 'react'
 
 interface PprModalProps {
   initEntity: 'platform' | 'profile' | 'role'
-  selectedEntity: Platform | Profile | Role
+  selectedEntity: Platform | Profile | Role | null
 }
 
 export const PprModal: React.FC<PprModalProps> = ({ initEntity, selectedEntity }) => {
@@ -37,7 +44,7 @@ export const PprModal: React.FC<PprModalProps> = ({ initEntity, selectedEntity }
   const profileStore = useProfileStore()
   const roleStore = useRoleStore()
 
-  const { isPprModalOpen, selectedPpr, pprModalAction } =
+  const { isPprModalOpen, selectedPpr, pprModalAction, closePprModal } =
     initEntity === 'platform' ? platformStore : initEntity === 'profile' ? profileStore : roleStore
 
   const [isLoading, setIsLoading] = useState(false)
@@ -55,7 +62,7 @@ export const PprModal: React.FC<PprModalProps> = ({ initEntity, selectedEntity }
   const roles = useMemo(() => dataRoles?.roles ?? [], [dataRoles?.roles])
 
   useEffect(() => {
-    if (isPprModalOpen) {
+    if (isPprModalOpen && selectedEntity) {
       if (pprModalAction === ACTION_TYPE.UNASSIGN && selectedPpr) {
         setSelectedPlatformId(initEntity === 'platform' ? selectedEntity.id : selectedPpr.platform.id)
         setSelectedProfileId(initEntity === 'profile' ? selectedEntity.id : selectedPpr.profile.id)
@@ -77,7 +84,7 @@ export const PprModal: React.FC<PprModalProps> = ({ initEntity, selectedEntity }
     pprModalAction,
     profiles.length,
     roles.length,
-    selectedEntity.id,
+    selectedEntity,
     selectedPpr,
   ])
 
@@ -123,6 +130,10 @@ export const PprModal: React.FC<PprModalProps> = ({ initEntity, selectedEntity }
       }
 
       handleReset()
+      closePprModal()
+      invalidatePlatformQuery()
+      invalidateProfileQuery()
+      invalidateRoleQuery()
     } catch (err) {
       const errorMessage = extractAxiosErrorMessage(err)
       showAlert('error', errorMessage)
@@ -147,8 +158,12 @@ export const PprModal: React.FC<PprModalProps> = ({ initEntity, selectedEntity }
 
   const handleClose = () => {
     handleReset()
+    closePprModal()
   }
 
+  const invalidatePlatformQuery = useInvalidatePlatforms(selectedPlatformId)
+  const invalidateProfileQuery = useInvalidateProfiles(selectedProfileId)
+  const invalidateRoleQuery = useInvalidateRoles(selectedRoleId)
   const isItLoading = isLoading || isPlatformsLoading || isProfilesLoading || isRolesLoading
 
   return (

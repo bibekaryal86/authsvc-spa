@@ -1,4 +1,4 @@
-import { HistoryTable, PrpTable, Spinner } from '@components'
+import { HistoryTable, PrpModal, PrpTable, Spinner } from '@components'
 import { ACTION_TYPE, DEFAULT_PARAMS, type PrpPprAction } from '@constants'
 import { Add, ArrowBack, History } from '@mui/icons-material'
 import {
@@ -26,7 +26,8 @@ export const PermissionDetails: React.FC = () => {
   const navigate = useNavigate()
   const { isSuperUser } = useAuthStore()
 
-  const { isShowHistory, setShowHistory, setSelectedPermission, openPrpModal, setIncludeDeleted } = usePermissionStore()
+  const { isShowHistory, setShowHistory, selectedPermission, setSelectedPermission, openPrpModal, setIncludeDeleted } =
+    usePermissionStore()
 
   const permissionId = getNumber(id)
   const {
@@ -297,6 +298,7 @@ export const PermissionDetails: React.FC = () => {
             </Box>
           </Collapse>
         </Paper>
+        <PrpModal initEntity='permission' selectedEntity={selectedPermission} />
       </Container>
     </>
   )

@@ -68,9 +68,13 @@ export const useRestorePlatform = () => {
   })
 }
 
-export const useInvalidatePlatforms = () => {
+export const useInvalidatePlatforms = (id?: number | null) => {
   const queryClient = useQueryClient()
   return () => {
-    void queryClient.invalidateQueries({ queryKey: ['platforms'] })
+    if (id) {
+      void queryClient.invalidateQueries({ queryKey: ['platform', id] })
+    } else {
+      void queryClient.invalidateQueries({ queryKey: ['platforms'] })
+    }
   }
 }

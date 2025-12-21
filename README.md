@@ -1,9 +1,5 @@
 TODO
 when logging out, clear query cache also
-PermissionDetails -> prp modal
-RoleDetails -> prp, ppr modal
-PlatformDetails -> prp, ppr modal
-ProfileDetails -> ppr modal
 
 # Auth Service Admin Portal
 

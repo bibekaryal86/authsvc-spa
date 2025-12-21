@@ -69,9 +69,13 @@ export const useRestorePermission = () => {
   })
 }
 
-export const useInvalidatePermissions = () => {
+export const useInvalidatePermissions = (id?: number | null) => {
   const queryClient = useQueryClient()
   return () => {
-    void queryClient.invalidateQueries({ queryKey: ['permissions'] })
+    if (id) {
+      void queryClient.invalidateQueries({ queryKey: ['permission', id] })
+    } else {
+      void queryClient.invalidateQueries({ queryKey: ['permissions'] })
+    }
   }
 }
