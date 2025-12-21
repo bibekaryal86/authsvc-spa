@@ -47,20 +47,49 @@ export const useRoleStore = create<RoleState>()(
       prpModalAction: null,
       pprModalAction: null,
 
-      setSelectedStatus: (v) => set({ selectedStatus: v }),
-      setIncludeDeleted: (v) => set({ isIncludeDeleted: v }),
-      setSelectedRole: (p) => set({ selectedRole: p }),
+      setSelectedStatus: (v) => set({ selectedStatus: v }, false, 'role/setSelectedStatus'),
+
+      setIncludeDeleted: (v) => set({ isIncludeDeleted: v }, false, 'role/setIncludeDeleted'),
+
+      setSelectedRole: (p) => set({ selectedRole: p }, false, 'role/setSelectedRole'),
+
       openRoleModal: (action, role = null) =>
-        set({ isRoleModalOpen: true, roleModalAction: action, selectedRole: role }),
-      closeRoleModal: () => set({ isRoleModalOpen: false, roleModalAction: null, selectedRole: null }),
-      openPrpModal: (action, prp = null) => set({ isPrpModalOpen: true, prpModalAction: action, selectedPrp: prp }),
-      closePrpModal: () => set({ isPrpModalOpen: false, prpModalAction: null, selectedPrp: null }),
-      openPprModal: (action, ppr = null) => set({ isPprModalOpen: true, pprModalAction: action, selectedPpr: ppr }),
-      closePprModal: () => set({ isPprModalOpen: false, pprModalAction: null, selectedPpr: null }),
+        set(
+          {
+            isRoleModalOpen: true,
+            roleModalAction: action,
+            selectedRole: role,
+          },
+          false,
+          'role/openRoleModal',
+        ),
 
-      setShowHistory: (v) => set({ isShowHistory: v }),
+      closeRoleModal: () =>
+        set(
+          {
+            isRoleModalOpen: false,
+            roleModalAction: null,
+            selectedRole: null,
+          },
+          false,
+          'role/closeRoleModal',
+        ),
 
-      resetRoles: () =>
+      openPrpModal: (action, prp = null) =>
+        set({ isPrpModalOpen: true, prpModalAction: action, selectedPrp: prp }, false, 'role/openPrpModal'),
+
+      closePrpModal: () =>
+        set({ isPrpModalOpen: false, prpModalAction: null, selectedPrp: null }, false, 'role/closePrpModal'),
+
+      openPprModal: (action, ppr = null) =>
+        set({ isPprModalOpen: true, pprModalAction: action, selectedPpr: ppr }, false, 'role/openPprModal'),
+
+      closePprModal: () =>
+        set({ isPprModalOpen: false, pprModalAction: null, selectedPpr: null }, false, 'role/closePprModal'),
+
+      setShowHistory: (v) => set({ isShowHistory: v }, false, 'role/setShowHistory'),
+
+      resetRoleState: () =>
         set(
           {
             isRoleModalOpen: false,
@@ -77,7 +106,7 @@ export const useRoleStore = create<RoleState>()(
             pprModalAction: null,
           },
           false,
-          'role/resetRoles',
+          'role/resetRoleState',
         ),
     }),
     {

@@ -6,7 +6,7 @@ interface SpinnerState {
   showSpinner: () => void
   hideSpinner: () => void
   setLoading: (loading: boolean) => void
-  resetSpinner: () => void
+  resetSpinnerState: () => void
 }
 
 export const useSpinnerStore = create<SpinnerState>()(
@@ -20,7 +20,7 @@ export const useSpinnerStore = create<SpinnerState>()(
 
       setLoading: (loading: boolean) => set({ isLoading: loading }, false, 'spinner/setLoading'),
 
-      resetSpinner: () => set({ isLoading: false }, false, 'alert/resetSpinner'),
+      resetSpinnerState: () => set({ isLoading: false }, false, 'spinner/resetSpinner'),
     }),
     {
       name: 'SpinnerStore',

@@ -8,7 +8,7 @@ interface AlertState {
   messageText: string | null
   showAlert: (type: AlertColor, text: string) => void
   hideAlert: () => void
-  resetAlert: () => void
+  resetAlertState: () => void
 }
 
 export const useAlertStore = create<AlertState>()(
@@ -23,7 +23,7 @@ export const useAlertStore = create<AlertState>()(
 
       hideAlert: () => set({ isOpen: false }, false, 'alert/hideAlert'),
 
-      resetAlert: () => set({ isOpen: false, messageType: null, messageText: null }, false, 'alert/resetAlert'),
+      resetAlertState: () => set({ isOpen: false, messageType: null, messageText: null }, false, 'alert/resetAlert'),
     }),
     {
       name: 'AlertStore',

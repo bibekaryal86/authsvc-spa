@@ -47,20 +47,49 @@ export const usePlatformStore = create<PlatformState>()(
       prpModalAction: null,
       pprModalAction: null,
 
-      setSelectedStatus: (v) => set({ selectedStatus: v }),
-      setIncludeDeleted: (v) => set({ isIncludeDeleted: v }),
-      setSelectedPlatform: (p) => set({ selectedPlatform: p }),
+      setSelectedStatus: (v) => set({ selectedStatus: v }, false, 'platform/setSelectedStatus'),
+
+      setIncludeDeleted: (v) => set({ isIncludeDeleted: v }, false, 'platform/setIncludeDeleted'),
+
+      setSelectedPlatform: (p) => set({ selectedPlatform: p }, false, 'platform/setSelectedPlatform'),
+
       openPlatformModal: (action, platform = null) =>
-        set({ isPlatformModalOpen: true, platformModalAction: action, selectedPlatform: platform }),
-      closePlatformModal: () => set({ isPlatformModalOpen: false, platformModalAction: null, selectedPlatform: null }),
-      openPrpModal: (action, prp = null) => set({ isPrpModalOpen: true, prpModalAction: action, selectedPrp: prp }),
-      closePrpModal: () => set({ isPrpModalOpen: false, prpModalAction: null, selectedPrp: null }),
-      openPprModal: (action, ppr = null) => set({ isPprModalOpen: true, pprModalAction: action, selectedPpr: ppr }),
-      closePprModal: () => set({ isPprModalOpen: false, pprModalAction: null, selectedPpr: null }),
+        set(
+          {
+            isPlatformModalOpen: true,
+            platformModalAction: action,
+            selectedPlatform: platform,
+          },
+          false,
+          'platform/openPlatformModal',
+        ),
 
-      setShowHistory: (v) => set({ isShowHistory: v }),
+      closePlatformModal: () =>
+        set(
+          {
+            isPlatformModalOpen: false,
+            platformModalAction: null,
+            selectedPlatform: null,
+          },
+          false,
+          'platform/closePlatformModal',
+        ),
 
-      resetPlatforms: () =>
+      openPrpModal: (action, prp = null) =>
+        set({ isPrpModalOpen: true, prpModalAction: action, selectedPrp: prp }, false, 'platform/openPrpModal'),
+
+      closePrpModal: () =>
+        set({ isPrpModalOpen: false, prpModalAction: null, selectedPrp: null }, false, 'platform/closePrpModal'),
+
+      openPprModal: (action, ppr = null) =>
+        set({ isPprModalOpen: true, pprModalAction: action, selectedPpr: ppr }, false, 'platform/openPprModal'),
+
+      closePprModal: () =>
+        set({ isPprModalOpen: false, pprModalAction: null, selectedPpr: null }, false, 'platform/closePprModal'),
+
+      setShowHistory: (v) => set({ isShowHistory: v }, false, 'platform/setShowHistory'),
+
+      resetPlatformState: () =>
         set(
           {
             isPlatformModalOpen: false,
@@ -77,7 +106,7 @@ export const usePlatformStore = create<PlatformState>()(
             pprModalAction: null,
           },
           false,
-          'platform/resetPlatforms',
+          'platform/resetPlatformState',
         ),
     }),
     {

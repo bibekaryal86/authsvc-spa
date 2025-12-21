@@ -42,19 +42,45 @@ export const usePermissionStore = create<PermissionState>()(
       selectedPrp: null,
       prpModalAction: null,
 
-      setSelectedStatus: (v) => set({ selectedStatus: v }),
-      setSelectedPlatform: (v) => set({ selectedPlatform: v }),
-      setIncludeDeleted: (v) => set({ isIncludeDeleted: v }),
-      setSelectedPermission: (p) => set({ selectedPermission: p }),
-      openPermissionModal: (action, permission = null) =>
-        set({ isPermissionModalOpen: true, permissionModalAction: action, selectedPermission: permission }),
-      closePermissionModal: () =>
-        set({ isPermissionModalOpen: false, permissionModalAction: null, selectedPermission: null }),
-      openPrpModal: (action, prp = null) => set({ isPrpModalOpen: true, prpModalAction: action, selectedPrp: prp }),
-      closePrpModal: () => set({ isPrpModalOpen: false, prpModalAction: null, selectedPrp: null }),
-      setShowHistory: (v) => set({ isShowHistory: v }),
+      setSelectedStatus: (v) => set({ selectedStatus: v }, false, 'permission/setSelectedStatus'),
 
-      resetPermissions: () =>
+      setSelectedPlatform: (v) => set({ selectedPlatform: v }, false, 'permission/setSelectedPlatform'),
+
+      setIncludeDeleted: (v) => set({ isIncludeDeleted: v }, false, 'permission/setIncludeDeleted'),
+
+      setSelectedPermission: (p) => set({ selectedPermission: p }, false, 'permission/setSelectedPermission'),
+
+      openPermissionModal: (action, permission = null) =>
+        set(
+          {
+            isPermissionModalOpen: true,
+            permissionModalAction: action,
+            selectedPermission: permission,
+          },
+          false,
+          'permission/openPermissionModal',
+        ),
+
+      closePermissionModal: () =>
+        set(
+          {
+            isPermissionModalOpen: false,
+            permissionModalAction: null,
+            selectedPermission: null,
+          },
+          false,
+          'permission/closePermissionModal',
+        ),
+
+      openPrpModal: (action, prp = null) =>
+        set({ isPrpModalOpen: true, prpModalAction: action, selectedPrp: prp }, false, 'permission/openPrpModal'),
+
+      closePrpModal: () =>
+        set({ isPrpModalOpen: false, prpModalAction: null, selectedPrp: null }, false, 'permission/closePrpModal'),
+
+      setShowHistory: (v) => set({ isShowHistory: v }, false, 'permission/setShowHistory'),
+
+      resetPermissionState: () =>
         set(
           {
             isPermissionModalOpen: false,
@@ -69,7 +95,7 @@ export const usePermissionStore = create<PermissionState>()(
             prpModalAction: null,
           },
           false,
-          'permission/resetPermissions',
+          'permission/resetPermissionState',
         ),
     }),
     {

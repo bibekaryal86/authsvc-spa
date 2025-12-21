@@ -42,18 +42,45 @@ export const useProfileStore = create<ProfileState>()(
       selectedPpr: null,
       pprModalAction: null,
 
-      setSelectedStatus: (v) => set({ selectedStatus: v }),
-      setSelectedPlatform: (v) => set({ selectedPlatform: v }),
-      setIncludeDeleted: (v) => set({ isIncludeDeleted: v }),
-      setSelectedProfile: (p) => set({ selectedProfile: p }),
-      openProfileModal: (action, profile = null) =>
-        set({ isProfileModalOpen: true, profileModalAction: action, selectedProfile: profile }),
-      closeProfileModal: () => set({ isProfileModalOpen: false, profileModalAction: null, selectedProfile: null }),
-      openPprModal: (action, ppr = null) => set({ isPprModalOpen: true, pprModalAction: action, selectedPpr: ppr }),
-      closePprModal: () => set({ isPprModalOpen: false, pprModalAction: null, selectedPpr: null }),
-      setShowHistory: (v) => set({ isShowHistory: v }),
+      setSelectedStatus: (v) => set({ selectedStatus: v }, false, 'profile/setSelectedStatus'),
 
-      resetProfiles: () =>
+      setSelectedPlatform: (v) => set({ selectedPlatform: v }, false, 'profile/setSelectedPlatform'),
+
+      setIncludeDeleted: (v) => set({ isIncludeDeleted: v }, false, 'profile/setIncludeDeleted'),
+
+      setSelectedProfile: (p) => set({ selectedProfile: p }, false, 'profile/setSelectedProfile'),
+
+      openProfileModal: (action, profile = null) =>
+        set(
+          {
+            isProfileModalOpen: true,
+            profileModalAction: action,
+            selectedProfile: profile,
+          },
+          false,
+          'profile/openProfileModal',
+        ),
+
+      closeProfileModal: () =>
+        set(
+          {
+            isProfileModalOpen: false,
+            profileModalAction: null,
+            selectedProfile: null,
+          },
+          false,
+          'profile/closeProfileModal',
+        ),
+
+      openPprModal: (action, ppr = null) =>
+        set({ isPprModalOpen: true, pprModalAction: action, selectedPpr: ppr }, false, 'profile/openPprModal'),
+
+      closePprModal: () =>
+        set({ isPprModalOpen: false, pprModalAction: null, selectedPpr: null }, false, 'profile/closePprModal'),
+
+      setShowHistory: (v) => set({ isShowHistory: v }, false, 'profile/setShowHistory'),
+
+      resetProfileState: () =>
         set(
           {
             isProfileModalOpen: false,
@@ -68,7 +95,7 @@ export const useProfileStore = create<ProfileState>()(
             pprModalAction: null,
           },
           false,
-          'profile/resetProfiles',
+          'profile/resetProfileState',
         ),
     }),
     {
