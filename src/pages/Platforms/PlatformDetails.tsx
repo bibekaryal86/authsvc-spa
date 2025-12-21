@@ -18,7 +18,7 @@ import { useReadPlatformById } from '@queries'
 import { usePlatformStore, useAuthStore } from '@stores'
 import type { PlatformProfileRole, PlatformRolePermission } from '@types'
 import { getNumber } from '@utils'
-import React from 'react'
+import React, { useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 
 export const PlatformDetails: React.FC = () => {
@@ -34,7 +34,10 @@ export const PlatformDetails: React.FC = () => {
     isLoading,
     error,
   } = useReadPlatformById(platformId, { ...DEFAULT_PARAMS, isForceFetch: true, isIncludeHistory: isShowHistory })
-  setSelectedPlatform(platform ? platform : null)
+
+  useEffect(() => {
+    setSelectedPlatform(platform ?? null)
+  }, [platform, setSelectedPlatform])
 
   const handleBack = () => {
     void navigate(-1)

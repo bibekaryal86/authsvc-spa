@@ -18,7 +18,7 @@ import { useReadRoleById } from '@queries'
 import { useRoleStore, useAuthStore } from '@stores'
 import type { PlatformProfileRole, PlatformRolePermission } from '@types'
 import { getNumber } from '@utils'
-import React from 'react'
+import React, { useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 
 export const RoleDetails: React.FC = () => {
@@ -35,7 +35,10 @@ export const RoleDetails: React.FC = () => {
     isLoading,
     error,
   } = useReadRoleById(roleId, { ...DEFAULT_PARAMS, isForceFetch: true, isIncludeHistory: isShowHistory })
-  setSelectedRole(role ? role : null)
+
+  useEffect(() => {
+    setSelectedRole(role ?? null)
+  }, [role, setSelectedRole])
 
   const handleBack = () => {
     void navigate(-1)

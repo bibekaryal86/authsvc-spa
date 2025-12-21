@@ -18,7 +18,7 @@ import { useReadPermissionById } from '@queries'
 import { usePermissionStore, useAuthStore } from '@stores'
 import type { PlatformRolePermission } from '@types'
 import { getNumber } from '@utils'
-import React from 'react'
+import React, { useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 
 export const PermissionDetails: React.FC = () => {
@@ -34,7 +34,10 @@ export const PermissionDetails: React.FC = () => {
     isLoading,
     error,
   } = useReadPermissionById(permissionId, { ...DEFAULT_PARAMS, isForceFetch: true, isIncludeHistory: isShowHistory })
-  setSelectedPermission(permission ? permission : null)
+
+  useEffect(() => {
+    setSelectedPermission(permission ?? null)
+  }, [permission, setSelectedPermission])
 
   const handleBack = () => {
     void navigate(-1)

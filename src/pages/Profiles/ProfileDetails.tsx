@@ -18,7 +18,7 @@ import { useReadProfileById } from '@queries'
 import { useProfileStore, useAuthStore } from '@stores'
 import type { PlatformProfileRole } from '@types'
 import { getNumber, getUserFullName } from '@utils'
-import React from 'react'
+import React, { useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 
 export const ProfileDetails: React.FC = () => {
@@ -34,7 +34,10 @@ export const ProfileDetails: React.FC = () => {
     isLoading,
     error,
   } = useReadProfileById(profileId, { ...DEFAULT_PARAMS, isForceFetch: true, isIncludeHistory: isShowHistory })
-  setSelectedProfile(profile ? profile : null)
+
+  useEffect(() => {
+    setSelectedProfile(profile ?? null)
+  }, [profile, setSelectedProfile])
 
   const handleBack = () => {
     void navigate(-1)
