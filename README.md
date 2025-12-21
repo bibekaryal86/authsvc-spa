@@ -36,7 +36,7 @@ This is the frontend for Auth-Service [https://github.com/bibekaryal86/auth-serv
 
 - React 18 with TypeScript for type-safe development
 - Vite for fast development and optimized builds
-- React Router v6 for client-side navigation 
+- React Router v6 for client-side navigation
 
 #### UI Components & Styling
 
@@ -70,16 +70,20 @@ This is the frontend for Auth-Service [https://github.com/bibekaryal86/auth-serv
 - Build Optimization for production deployments
 
 ## Data Flow
+
 The application separates UI state and server state to keep the architecture predictable, scalable, and easy to maintain.
 
 #### User Interaction (UI Layer)
+
 - Users interact with forms, tables, dialogs, and navigation components.
 - UI components trigger actions such as opening modals, submitting forms, or selecting entities.
 
 These interactions update Zustand stores for local UI state (e.g., modal visibility, selected permission, theme, alerts).
 
 #### Client-Side State (Zustand)
+
 Zustand manages all ephemeral UI state that does not come from the backend:
+
 - Modal open/close state
 - Selected entities
 - Authentication session
@@ -89,7 +93,9 @@ Zustand manages all ephemeral UI state that does not come from the backend:
 Zustand stores act as the “UI event layer,” coordinating what the user sees and what actions are available.
 
 #### Server-Side State (TanStack Query)
+
 TanStack Query handles all remote data from the Auth Service API:
+
 - Fetching lists of entities
 - Fetching single entities
 - Mutations for create/update/delete/restore
@@ -99,7 +105,9 @@ TanStack Query handles all remote data from the Auth Service API:
 This ensures the UI always reflects the latest backend state without manual state management.
 
 #### Service Layer (API Calls)
+
 All network requests flow through a dedicated service layer:
+
 - Axios-based API clients
 - Centralized error extraction and normalization
 - Consistent request/response handling
@@ -108,12 +116,15 @@ All network requests flow through a dedicated service layer:
 TanStack Query calls these services inside queries and mutations.
 
 #### Data Rendering (UI Components)
+
 Once data is fetched or mutated:
+
 - TanStack Query provides cached results to components
 - Zustand controls UI behavior (modals, alerts, selections)
 - Components render the final state to the user
 
 This creates a clean separation:
+
 - Zustand = UI state
 - TanStack Query = server state
 - Service Layer = API communication
