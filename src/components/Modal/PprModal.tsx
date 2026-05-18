@@ -30,12 +30,20 @@ import { pprService } from '@services'
 import { useAlertStore, usePlatformStore, useProfileStore, useRoleStore } from '@stores'
 import type { Platform, Profile, Role } from '@types'
 import { extractAxiosErrorMessage, getNumber, getString, getUserFullName } from '@utils'
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useMemo } from 'react'
 
 interface PprModalProps {
   initEntity: 'platform' | 'profile' | 'role'
   selectedEntity: Platform | Profile | Role | null
 }
+
+interface SelectedIds {
+  platformId: number | null
+  profileId: number | null
+  roleId: number | null
+}
+
+const INITIAL_IDS: SelectedIds = { platformId: null, profileId: null, roleId: null }
 
 export const PprModal: React.FC<PprModalProps> = ({ initEntity, selectedEntity }) => {
   const { showAlert } = useAlertStore()
@@ -48,9 +56,7 @@ export const PprModal: React.FC<PprModalProps> = ({ initEntity, selectedEntity }
     initEntity === 'platform' ? platformStore : initEntity === 'profile' ? profileStore : roleStore
 
   const [isLoading, setIsLoading] = useState(false)
-  const [selectedPlatformId, setSelectedPlatformId] = useState<number | null>(null)
-  const [selectedProfileId, setSelectedProfileId] = useState<number | null>(null)
-  const [selectedRoleId, setSelectedRoleId] = useState<number | null>(null)
+  const [userPickedIds, setUserPickedIds] = useState<SelectedIds>(INITIAL_IDS)
   const [isHardDelete, setIsHardDelete] = useState(false)
 
   const { data: dataPlatforms, isLoading: isPlatformsLoading } = useReadPlatforms(DEFAULT_PARAMS)
@@ -61,67 +67,73 @@ export const PprModal: React.FC<PprModalProps> = ({ initEntity, selectedEntity }
   const profiles = useMemo(() => dataProfiles?.profiles ?? [], [dataProfiles?.profiles])
   const roles = useMemo(() => dataRoles?.roles ?? [], [dataRoles?.roles])
 
-  useEffect(() => {
-    if (isPprModalOpen && selectedEntity) {
-      if (pprModalAction === ACTION_TYPE.UNASSIGN && selectedPpr) {
-        setSelectedPlatformId(initEntity === 'platform' ? selectedEntity.id : selectedPpr.platform.id)
-        setSelectedProfileId(initEntity === 'profile' ? selectedEntity.id : selectedPpr.profile.id)
-        setSelectedRoleId(initEntity === 'role' ? selectedEntity.id : selectedPpr.role.id)
-      } else if (pprModalAction === ACTION_TYPE.ASSIGN) {
-        if (initEntity === 'platform') {
-          setSelectedPlatformId(selectedEntity.id)
-        } else if (initEntity === 'profile') {
-          setSelectedProfileId(selectedEntity.id)
-        } else if (initEntity === 'role') {
-          setSelectedRoleId(selectedEntity.id)
-        }
+  const effectiveIds = useMemo<SelectedIds>(() => {
+    if (!isPprModalOpen || !selectedEntity) return INITIAL_IDS
+    if (pprModalAction === ACTION_TYPE.UNASSIGN && selectedPpr) {
+      return {
+        platformId: initEntity === 'platform' ? selectedEntity.id : selectedPpr.platform.id,
+        profileId: initEntity === 'profile' ? selectedEntity.id : selectedPpr.profile.id,
+        roleId: initEntity === 'role' ? selectedEntity.id : selectedPpr.role.id,
       }
     }
-  }, [
-    initEntity,
-    isPprModalOpen,
-    platforms.length,
-    pprModalAction,
-    profiles.length,
-    roles.length,
-    selectedEntity,
-    selectedPpr,
-  ])
+    if (pprModalAction === ACTION_TYPE.ASSIGN) {
+      return {
+        platformId: initEntity === 'platform' ? selectedEntity.id : userPickedIds.platformId,
+        profileId: initEntity === 'profile' ? selectedEntity.id : userPickedIds.profileId,
+        roleId: initEntity === 'role' ? selectedEntity.id : userPickedIds.roleId,
+      }
+    }
+    return INITIAL_IDS
+  }, [initEntity, isPprModalOpen, pprModalAction, selectedEntity, selectedPpr, userPickedIds])
 
   const handlePlatformChange = (event: SelectChangeEvent<string | null>) => {
-    const value = event.target.value
-    setSelectedPlatformId(getNumber(value))
+    setUserPickedIds((prev) => ({ ...prev, platformId: getNumber(event.target.value) }))
   }
 
   const handleProfileChange = (event: SelectChangeEvent<string | null>) => {
-    const value = event.target.value
-    setSelectedProfileId(getNumber(value))
+    setUserPickedIds((prev) => ({ ...prev, profileId: getNumber(event.target.value) }))
   }
 
   const handleRoleChange = (event: SelectChangeEvent<string | null>) => {
-    const value = event.target.value
-    setSelectedRoleId(getNumber(value))
+    setUserPickedIds((prev) => ({ ...prev, roleId: getNumber(event.target.value) }))
+  }
+
+  const invalidatePlatformQuery = useInvalidatePlatforms(effectiveIds.platformId)
+  const invalidateProfileQuery = useInvalidateProfiles(effectiveIds.profileId)
+  const invalidateRoleQuery = useInvalidateRoles(effectiveIds.roleId)
+  const isItLoading = isLoading || isPlatformsLoading || isProfilesLoading || isRolesLoading
+
+  const handleReset = () => {
+    setUserPickedIds(INITIAL_IDS)
+    setIsHardDelete(false)
+  }
+
+  const handleClose = () => {
+    handleReset()
+    closePprModal()
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
 
+    const { platformId, profileId, roleId } = effectiveIds
+
     try {
-      if (selectedPlatformId && selectedProfileId && selectedRoleId) {
+      if (platformId && profileId && roleId) {
         if (pprModalAction === ACTION_TYPE.ASSIGN) {
           await pprService.assignPpr({
-            platformId: selectedPlatformId,
-            profileId: selectedProfileId,
-            roleId: selectedRoleId,
+            platformId,
+            profileId,
+            roleId,
           })
           showAlert('success', 'Successfully assigned Platform Profile Role')
         } else if (pprModalAction === ACTION_TYPE.UNASSIGN) {
           await pprService.unassignPpr(
             {
-              platformId: selectedPlatformId,
-              profileId: selectedProfileId,
-              roleId: selectedRoleId,
+              platformId,
+              profileId,
+              roleId,
             },
             isHardDelete,
           )
@@ -141,30 +153,6 @@ export const PprModal: React.FC<PprModalProps> = ({ initEntity, selectedEntity }
       setIsLoading(false)
     }
   }
-
-  const handleReset = () => {
-    if (initEntity === 'platform') {
-      setSelectedProfileId(null)
-      setSelectedRoleId(null)
-    } else if (initEntity === 'profile') {
-      setSelectedPlatformId(null)
-      setSelectedRoleId(null)
-    } else if (initEntity === 'role') {
-      setSelectedPlatformId(null)
-      setSelectedProfileId(null)
-    }
-    setIsHardDelete(false)
-  }
-
-  const handleClose = () => {
-    handleReset()
-    closePprModal()
-  }
-
-  const invalidatePlatformQuery = useInvalidatePlatforms(selectedPlatformId)
-  const invalidateProfileQuery = useInvalidateProfiles(selectedProfileId)
-  const invalidateRoleQuery = useInvalidateRoles(selectedRoleId)
-  const isItLoading = isLoading || isPlatformsLoading || isProfilesLoading || isRolesLoading
 
   return (
     <Modal
@@ -199,7 +187,7 @@ export const PprModal: React.FC<PprModalProps> = ({ initEntity, selectedEntity }
                 <Select
                   labelId='platform-select-label'
                   id='platform-select'
-                  value={getString(selectedPlatformId)}
+                  value={getString(effectiveIds.platformId)}
                   label='Platform'
                   onChange={handlePlatformChange}
                   renderValue={(value) => {
@@ -234,7 +222,7 @@ export const PprModal: React.FC<PprModalProps> = ({ initEntity, selectedEntity }
                 <Select
                   labelId='profile-select-label'
                   id='profile-select'
-                  value={getString(selectedProfileId)}
+                  value={getString(effectiveIds.profileId)}
                   label='Profile'
                   onChange={handleProfileChange}
                   renderValue={(value) => {
@@ -269,7 +257,7 @@ export const PprModal: React.FC<PprModalProps> = ({ initEntity, selectedEntity }
                 <Select
                   labelId='role-select-label'
                   id='role-select'
-                  value={getString(selectedRoleId)}
+                  value={getString(effectiveIds.roleId)}
                   label='Role'
                   onChange={handleRoleChange}
                   renderValue={(value) => {
@@ -306,7 +294,7 @@ export const PprModal: React.FC<PprModalProps> = ({ initEntity, selectedEntity }
                 <Button
                   variant='contained'
                   onClick={(e) => void handleSubmit(e)}
-                  disabled={!selectedPlatformId || !selectedProfileId || !selectedRoleId}
+                  disabled={!effectiveIds.platformId || !effectiveIds.profileId || !effectiveIds.roleId}
                 >
                   {isItLoading ? (
                     <>

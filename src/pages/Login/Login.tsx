@@ -3,7 +3,7 @@ import { Alert, Box, Button, Container, Paper, TextField, Typography } from '@mu
 import CircularProgress from '@mui/material/CircularProgress'
 import { authService } from '@services'
 import { useAlertStore, useAuthStore } from '@stores'
-import React, { useEffect, useState } from 'react'
+import React, { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 
 interface LoginForm {
@@ -23,7 +23,19 @@ export const Login: React.FC = () => {
   const { showAlert } = useAlertStore()
   const { login } = useAuthStore()
 
-  const [mode, setMode] = useState<'login' | 'reset_init' | 'reset_exit'>('login')
+  const searchParams = new URLSearchParams(location.search)
+  const isValidated = searchParams.get('is_validated')
+  const isReset = searchParams.get('is_reset')
+
+  const [mode, setMode] = useState<'login' | 'reset_init' | 'reset_exit'>(() =>
+    isReset === 'true' || isReset === 'false' ? 'reset_exit' : 'login',
+  )
+  const [showValidationMessage, setShowValidationMessage] = useState(() =>
+    isValidated === 'true' ? 'true' : isValidated === 'false' ? 'false' : '',
+  )
+  const [showResetMessage, setShowResetMessage] = useState(() =>
+    isReset === 'true' ? 'true' : isReset === 'false' ? 'false' : '',
+  )
 
   const [loginFormData, setLoginFormData] = useState<LoginForm>({
     email: '',
@@ -36,26 +48,6 @@ export const Login: React.FC = () => {
   })
 
   const [loading, setLoading] = useState(false)
-  const [showValidationMessage, setShowValidationMessage] = useState('')
-  const [showResetMessage, setShowResetMessage] = useState('')
-
-  useEffect(() => {
-    const searchParams = new URLSearchParams(location.search)
-    const isValidated = searchParams.get('is_validated')
-    const isReset = searchParams.get('is_reset')
-
-    if (isValidated === 'true') {
-      setShowValidationMessage('true')
-    } else if (isValidated === 'false') {
-      setShowValidationMessage('false')
-    } else if (isReset === 'true') {
-      setMode('reset_exit')
-      setShowResetMessage('true')
-    } else if (isReset === 'false') {
-      setMode('reset_exit')
-      setShowResetMessage('false')
-    }
-  }, [location.search, showAlert])
 
   const handleLoginChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
@@ -177,7 +169,7 @@ export const Login: React.FC = () => {
           ) : (
             <LockReset sx={{ fontSize: 40, color: 'secondary.main', mr: 2 }} />
           )}
-          <Typography component='h1' variant='h4' fontWeight='bold'>
+          <Typography component='h1' variant='h4' sx={{ fontWeight: 'bold' }}>
             {mode === 'login' ? 'Sign In' : 'Reset Password'}
           </Typography>
         </Box>
@@ -202,7 +194,7 @@ export const Login: React.FC = () => {
             }}
             onClose={() => setShowValidationMessage('')}
           >
-            <Typography variant='body1' fontWeight='medium'>
+            <Typography variant='body1' sx={{ fontWeight: 'medium' }}>
               {showValidationMessage === 'true' ? 'Profile Validated Successfully!' : 'Profile could not be validated!'}
             </Typography>
             <Typography variant='body2'>
@@ -224,7 +216,7 @@ export const Login: React.FC = () => {
             }}
             onClose={() => setShowResetMessage('')}
           >
-            <Typography variant='body1' fontWeight='medium'>
+            <Typography variant='body1' sx={{ fontWeight: 'medium' }}>
               {showResetMessage === 'true' ? 'Profile Reset Started Successfully!' : 'Profile could not be reset!'}
             </Typography>
             <Typography variant='body2'>
