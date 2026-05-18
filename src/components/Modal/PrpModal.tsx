@@ -30,12 +30,20 @@ import { prpService } from '@services'
 import { useAlertStore, usePermissionStore, usePlatformStore, useRoleStore } from '@stores'
 import type { Permission, Platform, Role } from '@types'
 import { extractAxiosErrorMessage, getNumber, getString } from '@utils'
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useMemo } from 'react'
 
 interface PrpModalProps {
   initEntity: 'platform' | 'role' | 'permission'
   selectedEntity: Platform | Role | Permission | null
 }
+
+interface SelectedIds {
+  platformId: number | null
+  roleId: number | null
+  permissionId: number | null
+}
+
+const INITIAL_IDS: SelectedIds = { platformId: null, roleId: null, permissionId: null }
 
 export const PrpModal: React.FC<PrpModalProps> = ({ initEntity, selectedEntity }) => {
   const { showAlert } = useAlertStore()
@@ -47,9 +55,7 @@ export const PrpModal: React.FC<PrpModalProps> = ({ initEntity, selectedEntity }
     initEntity === 'platform' ? platformStore : initEntity === 'role' ? roleStore : permissionStore
 
   const [isLoading, setIsLoading] = useState(false)
-  const [selectedPlatformId, setSelectedPlatformId] = useState<number | null>(null)
-  const [selectedRoleId, setSelectedRoleId] = useState<number | null>(null)
-  const [selectedPermissionId, setSelectedPermissionId] = useState<number | null>(null)
+  const [userPickedIds, setUserPickedIds] = useState<SelectedIds>(INITIAL_IDS)
   const [isHardDelete, setIsHardDelete] = useState(false)
 
   const { data: dataPlatforms, isLoading: isPlatformsLoading } = useReadPlatforms(DEFAULT_PARAMS)
@@ -60,67 +66,73 @@ export const PrpModal: React.FC<PrpModalProps> = ({ initEntity, selectedEntity }
   const roles = useMemo(() => dataRoles?.roles ?? [], [dataRoles?.roles])
   const permissions = useMemo(() => dataPermissions?.permissions ?? [], [dataPermissions?.permissions])
 
-  useEffect(() => {
-    if (isPrpModalOpen && selectedEntity) {
-      if (prpModalAction === ACTION_TYPE.UNASSIGN && selectedPrp) {
-        setSelectedPlatformId(initEntity === 'platform' ? selectedEntity.id : selectedPrp.platform.id)
-        setSelectedRoleId(initEntity === 'role' ? selectedEntity.id : selectedPrp.role.id)
-        setSelectedPermissionId(initEntity === 'permission' ? selectedEntity.id : selectedPrp.permission.id)
-      } else if (prpModalAction === ACTION_TYPE.ASSIGN) {
-        if (initEntity === 'platform') {
-          setSelectedPlatformId(selectedEntity.id)
-        } else if (initEntity === 'role') {
-          setSelectedRoleId(selectedEntity.id)
-        } else if (initEntity === 'permission') {
-          setSelectedPermissionId(selectedEntity.id)
-        }
+  const effectiveIds = useMemo<SelectedIds>(() => {
+    if (!isPrpModalOpen || !selectedEntity) return INITIAL_IDS
+    if (prpModalAction === ACTION_TYPE.UNASSIGN && selectedPrp) {
+      return {
+        platformId: initEntity === 'platform' ? selectedEntity.id : selectedPrp.platform.id,
+        roleId: initEntity === 'role' ? selectedEntity.id : selectedPrp.role.id,
+        permissionId: initEntity === 'permission' ? selectedEntity.id : selectedPrp.permission.id,
       }
     }
-  }, [
-    initEntity,
-    isPrpModalOpen,
-    permissions.length,
-    platforms.length,
-    prpModalAction,
-    roles.length,
-    selectedEntity,
-    selectedPrp,
-  ])
+    if (prpModalAction === ACTION_TYPE.ASSIGN) {
+      return {
+        platformId: initEntity === 'platform' ? selectedEntity.id : userPickedIds.platformId,
+        roleId: initEntity === 'role' ? selectedEntity.id : userPickedIds.roleId,
+        permissionId: initEntity === 'permission' ? selectedEntity.id : userPickedIds.permissionId,
+      }
+    }
+    return INITIAL_IDS
+  }, [initEntity, isPrpModalOpen, prpModalAction, selectedEntity, selectedPrp, userPickedIds])
 
   const handlePlatformChange = (event: SelectChangeEvent<string | null>) => {
-    const value = event.target.value
-    setSelectedPlatformId(getNumber(value))
+    setUserPickedIds((prev) => ({ ...prev, platformId: getNumber(event.target.value) }))
   }
 
   const handleRoleChange = (event: SelectChangeEvent<string | null>) => {
-    const value = event.target.value
-    setSelectedRoleId(getNumber(value))
+    setUserPickedIds((prev) => ({ ...prev, roleId: getNumber(event.target.value) }))
   }
 
   const handlePermissionChange = (event: SelectChangeEvent<string | null>) => {
-    const value = event.target.value
-    setSelectedPermissionId(getNumber(value))
+    setUserPickedIds((prev) => ({ ...prev, permissionId: getNumber(event.target.value) }))
+  }
+
+  const invalidatePlatformQuery = useInvalidatePlatforms(effectiveIds.platformId)
+  const invalidateRoleQuery = useInvalidateRoles(effectiveIds.roleId)
+  const invalidatePermissionQuery = useInvalidatePermissions(effectiveIds.permissionId)
+  const isItLoading = isLoading || isPlatformsLoading || isRolesLoading || isPermissionsLoading
+
+  const handleReset = () => {
+    setUserPickedIds(INITIAL_IDS)
+    setIsHardDelete(false)
+  }
+
+  const handleClose = () => {
+    handleReset()
+    closePrpModal()
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
 
+    const { platformId, roleId, permissionId } = effectiveIds
+
     try {
-      if (selectedPlatformId && selectedRoleId && selectedPermissionId) {
+      if (platformId && roleId && permissionId) {
         if (prpModalAction === ACTION_TYPE.ASSIGN) {
           await prpService.assignPrp({
-            platformId: selectedPlatformId,
-            roleId: selectedRoleId,
-            permissionId: selectedPermissionId,
+            platformId,
+            roleId,
+            permissionId,
           })
           showAlert('success', 'Successfully submitted to assign Platform Role Permission')
         } else if (prpModalAction === ACTION_TYPE.UNASSIGN) {
           await prpService.unassignPrp(
             {
-              platformId: selectedPlatformId,
-              roleId: selectedRoleId,
-              permissionId: selectedPermissionId,
+              platformId,
+              roleId,
+              permissionId,
             },
             isHardDelete,
           )
@@ -140,30 +152,6 @@ export const PrpModal: React.FC<PrpModalProps> = ({ initEntity, selectedEntity }
       setIsLoading(false)
     }
   }
-
-  const handleReset = () => {
-    if (initEntity === 'platform') {
-      setSelectedRoleId(null)
-      setSelectedPermissionId(null)
-    } else if (initEntity === 'role') {
-      setSelectedPlatformId(null)
-      setSelectedPermissionId(null)
-    } else if (initEntity === 'permission') {
-      setSelectedPlatformId(null)
-      setSelectedRoleId(null)
-    }
-    setIsHardDelete(false)
-  }
-
-  const handleClose = () => {
-    handleReset()
-    closePrpModal()
-  }
-
-  const invalidatePlatformQuery = useInvalidatePlatforms(selectedPlatformId)
-  const invalidateRoleQuery = useInvalidateRoles(selectedRoleId)
-  const invalidatePermissionQuery = useInvalidatePermissions(selectedPermissionId)
-  const isItLoading = isLoading || isPlatformsLoading || isRolesLoading || isPermissionsLoading
 
   return (
     <Modal
@@ -197,7 +185,7 @@ export const PrpModal: React.FC<PrpModalProps> = ({ initEntity, selectedEntity }
                 <Select
                   labelId='platform-select-label'
                   id='platform-select'
-                  value={getString(selectedPlatformId)}
+                  value={getString(effectiveIds.platformId)}
                   label='Platform'
                   onChange={handlePlatformChange}
                   renderValue={(value) => {
@@ -232,7 +220,7 @@ export const PrpModal: React.FC<PrpModalProps> = ({ initEntity, selectedEntity }
                 <Select
                   labelId='role-select-label'
                   id='role-select'
-                  value={getString(selectedRoleId)}
+                  value={getString(effectiveIds.roleId)}
                   label='Role'
                   onChange={handleRoleChange}
                   renderValue={(value) => {
@@ -267,7 +255,7 @@ export const PrpModal: React.FC<PrpModalProps> = ({ initEntity, selectedEntity }
                 <Select
                   labelId='permission-select-label'
                   id='permission-select'
-                  value={getString(selectedPermissionId)}
+                  value={getString(effectiveIds.permissionId)}
                   label='Permission'
                   onChange={handlePermissionChange}
                   renderValue={(value) => {
@@ -304,7 +292,7 @@ export const PrpModal: React.FC<PrpModalProps> = ({ initEntity, selectedEntity }
                 <Button
                   variant='contained'
                   onClick={(e) => void handleSubmit(e)}
-                  disabled={!selectedPlatformId || !selectedRoleId || !selectedPermissionId}
+                  disabled={!effectiveIds.platformId || !effectiveIds.roleId || !effectiveIds.permissionId}
                 >
                   {isItLoading ? (
                     <>
