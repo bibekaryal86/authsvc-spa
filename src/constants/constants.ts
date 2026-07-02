@@ -28,10 +28,7 @@ export const ACTION_TYPE = {
 } as const
 
 export type ModalAction =
-  | typeof ACTION_TYPE.CREATE
-  | typeof ACTION_TYPE.UPDATE
-  | typeof ACTION_TYPE.DELETE
-  | typeof ACTION_TYPE.RESTORE
+  typeof ACTION_TYPE.CREATE | typeof ACTION_TYPE.UPDATE | typeof ACTION_TYPE.DELETE | typeof ACTION_TYPE.RESTORE
 
 export type ModalActionExtended =
   | ModalAction
